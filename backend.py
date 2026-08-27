@@ -3,18 +3,14 @@ import json
 import logging
 
 import ollama
-from agent_core import (
-    create_new_session,
-    get_session_path,
-    list_sessions_with_meta,
-    load_session,
-    run_tool,
-    save_session,
-)
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+
+from agent_core import (create_new_session, get_session_path,
+                        list_sessions_with_meta, load_session, run_tool,
+                        save_session)
 
 logger = logging.getLogger("agent_core")
 app = FastAPI()
@@ -119,9 +115,7 @@ async def chat_endpoint(req: ChatRequest):
             history.append({"role": "tool", "content": tool_record})
             save_session(req.session_id, history)
 
-            yield json.dumps(
-                {"event": "tool_result", "payload": tool_res}
-            ) + "\n"
+            yield json.dumps({"event": "tool_result", "payload": tool_res}) + "\n"
             yield json.dumps({"event": "done"}) + "\n"
             return
 
@@ -129,9 +123,7 @@ async def chat_endpoint(req: ChatRequest):
         save_session(req.session_id, history)
         yield json.dumps({"event": "done"}) + "\n"
 
-    return StreamingResponse(
-        async_iter_wrapper(), media_type="application/x-ndjson"
-    )
+    return StreamingResponse(async_iter_wrapper(), media_type="application/x-ndjson")
 
 
 if __name__ == "__main__":

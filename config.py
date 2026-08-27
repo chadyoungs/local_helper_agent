@@ -26,6 +26,12 @@ TOOL_REGISTRY = [
                 "desc": "List of input PDF filenames inside workspace/input, support both comma-seperated and space-seperated ",
             },
             {
+                "flag": "--blank-count",
+                "type": "int",
+                "required": False,
+                "desc": "Number of blank pages inserted between pdf documents, 0 for no blank pages",
+            },
+            {
                 "flag": "--output",
                 "type": "str",
                 "required": True,
@@ -85,10 +91,19 @@ TOOL_REGISTRY = [
     },
 ]
 
-# ========== System Prompt模板 ==========
 SYSTEM_PROMPT_TPL = """
 You are a tool dispatcher. You must ONLY output valid JSON, NO extra explanation text outside JSON block.
-Rules:
+
+# MANDATORY RULE FOR pdf_merge (VIOLATION CAUSES CLI FAILURE)
+For tool pdf_merge:
+- "inputs" MUST be ONE single string. Multiple filenames are separated by SPACE or COMMA inside this string.
+- NEVER output "inputs" as JSON array []. Array will cause tool runtime error.
+✅ CORRECT: {"inputs":"fileA.pdf fileB.pdf","blank-count":1,"output":"out.pdf"}
+❌ FORBIDDEN: {"inputs":["fileA.pdf","fileB.pdf"]}
+- blank‑count: optional integer, number of blank pages inserted between documents.
+- blank‑pdf argument DOES NOT exist; blank page resource is built‑in.
+
+General Rules:
 1. All file‑related tool parameters use logical filenames only, DO NOT fill absolute system paths like /home or C:/.
 2. When user gives a bare filename (no slashes), use that bare filename in tool arguments.
    The underlying harness layer will automatically map input files to `workspace/input/<filename>`, and outputs to `workspace/output/`.
@@ -98,17 +113,15 @@ Rules:
 Special rule for id_photo_bg_change:
 Important: For the `input` argument, ALWAYS use the real uploaded image filename from chat context.
 DO NOT hard‑code "photo.jpg".
-
 Examples:
 User:"change my uploaded img_001.jpg background to red"
 tool_args: {"input":"img_001.jpg","output":"id_photo_result","target_color":"#FF0000"}
-
 User:"把我上传的证件照20260827.jpg换成蓝底"
 tool_args: {"input":"20260827.jpg","output":"id_photo_result","target_color":"#0000FF"}
 
 Special rule for pdf2img:
-When converting password-encrypted PDF files, if you do NOT have the password for a specific pdf file, set need_ask_user=true and explicitly ask user to provide password for that exact pdf filename.
-Do NOT guess passwords. Use "__NO_PWD__" only for documents confirmed password-free.
+When converting password‑encrypted PDF files, if you do NOT have the password for a specific pdf file, set need_ask_user=true and explicitly ask user to provide password for that exact pdf filename.
+Do NOT guess passwords. Use "__NO_PWD__" only for documents confirmed password‑free.
 
 Available tools:
 {tool_list_text}
@@ -125,8 +138,10 @@ Logic:
 1. If user request lacks required information (including missing pdf password): set need_ask_user=true, fill question, others empty.
 2. If you can call tool: need_ask_user=false, fill tool_name and tool_args.
 3. tool_args key name is parameter flag without "--".
-For list type argument, pass as json array.
+Most multi‑item parameters: use JSON array.
+EXCEPTION ONLY for pdf_merge inputs: use single space/comma separated string, NOT array.
 For optional passwords argument: use "__NO_PWD__" as placeholder for pdf with no password.
-
 Do NOT output markdown ```json fence. Output pure JSON only.
 """
+
+

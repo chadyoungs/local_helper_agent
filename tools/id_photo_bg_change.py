@@ -1,7 +1,8 @@
 import argparse
 from pathlib import Path
-from PIL import Image
+
 import rembg
+from PIL import Image
 
 # ------------------------------
 # ID Photo Background Changer
@@ -9,17 +10,26 @@ import rembg
 # No auto‑swap / auto‑detect background color logic.
 # ------------------------------
 
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Change ID photo background color.")
-    parser.add_argument("--input", required=True, help="Input image filename in workspace/input")
-    parser.add_argument("--output", required=True, help="Output directory in workspace/output")
-    parser.add_argument("--target-color", required=True, help="Target background color in hex format, e.g. #FF0000(red), #0000FF(blue), #FFFFFF(white)")
+    parser.add_argument(
+        "--input", required=True, help="Input image filename in workspace/input"
+    )
+    parser.add_argument(
+        "--output", required=True, help="Output directory in workspace/output"
+    )
+    parser.add_argument(
+        "--target-color",
+        required=True,
+        help="Target background color in hex format, e.g. #FF0000(red), #0000FF(blue), #FFFFFF(white)",
+    )
     return parser.parse_args()
 
 
 def hex_to_rgb(hex_color: str) -> tuple[int, int, int]:
     hex_color = hex_color.lstrip("#")
-    return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+    return tuple(int(hex_color[i : i + 2], 16) for i in (0, 2, 4))
 
 
 def change_background(input_path: str, output_dir: Path, target_color_hex: str):
@@ -29,7 +39,9 @@ def change_background(input_path: str, output_dir: Path, target_color_hex: str):
     img = Image.open(input_path).convert("RGBA")
 
     # remove background with rembg
-    output = rembg.remove(img, alpha_matting=True, alpha_matting_foreground_threshold=240)
+    output = rembg.remove(
+        img, alpha_matting=True, alpha_matting_foreground_threshold=240
+    )
     foreground = output.convert("RGBA")
 
     target_rgb = hex_to_rgb(target_color_hex)
@@ -53,7 +65,9 @@ def main():
     target_hex = args.target_color
 
     if target_hex is None or str(target_hex).strip() == "":
-        raise ValueError("target‑color cannot be None or empty. Must provide hex color like #FF0000")
+        raise ValueError(
+            "target‑color cannot be None or empty. Must provide hex color like #FF0000"
+        )
     target_hex = target_hex.strip()
 
     change_background(str(input_file), out_dir, target_hex)

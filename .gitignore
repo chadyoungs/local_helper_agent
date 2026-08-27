@@ -1,5 +1,5 @@
-.json
-.in
-.pdf
-.png
+*.json
+*.in
+*.pdf
+*.png
 __pacache__

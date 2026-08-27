@@ -6,7 +6,6 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
-
 from config import SESSIONS_DIR, SYSTEM_PROMPT_TPL, TOOL_REGISTRY
 
 # ------------------------------ Logger Setup ------------------------------
@@ -24,14 +23,12 @@ if not logger.handlers:
 WORKSPACE: Path = Path("./workspace").resolve()
 INPUT_ROOT: Path = WORKSPACE / "input"
 OUTPUT_ROOT: Path = WORKSPACE / "output"
-
 INPUT_ROOT.mkdir(parents=True, exist_ok=True)
 OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
 
 
 class HarnessError(Exception):
-    """Business-level harness exception. Do NOT expose raw python traceback to agent."""
-
+    """Business‑level harness exception. Do NOT expose raw python traceback to agent."""
     pass
 
 
@@ -42,7 +39,6 @@ def _safe_resolve_input(logical_name: str) -> Path:
     p = Path(logical_name)
     if p.is_absolute():
         raise HarnessError(f"Forbidden absolute system path: `{logical_name}`")
-
     # If already a relative path inside input folder or bare filename
     if (INPUT_ROOT / p).exists():
         target = INPUT_ROOT / p
@@ -51,9 +47,7 @@ def _safe_resolve_input(logical_name: str) -> Path:
     else:
         # Default fallback target inside input directory
         target = INPUT_ROOT / p.name
-
     real_path = target.resolve()
-
     # Security check against traversal escape
     try:
         real_path.relative_to(WORKSPACE)
@@ -61,10 +55,8 @@ def _safe_resolve_input(logical_name: str) -> Path:
         raise HarnessError(
             f"Path traversal escape detected, forbidden name: `{logical_name}`"
         )
-
     if not real_path.exists():
         raise HarnessError(f"Input file not found in workspace/input: `{logical_name}`")
-
     return real_path
 
 
@@ -75,13 +67,10 @@ def _safe_resolve_output(logical_name: str, primary_input_stem: str) -> Path:
     p = Path(logical_name)
     if p.is_absolute():
         raise HarnessError(f"Forbidden absolute system path: `{logical_name}`")
-
     # Create dedicated subfolder under workspace/output/<input_file_stem>/
     base_output_dir = OUTPUT_ROOT / primary_input_stem
     target = base_output_dir / p
-
     real_path = target.resolve()
-
     # Security check against traversal escape
     try:
         real_path.relative_to(WORKSPACE)
@@ -89,7 +78,6 @@ def _safe_resolve_output(logical_name: str, primary_input_stem: str) -> Path:
         raise HarnessError(
             f"Path traversal escape detected, forbidden output path: `{logical_name}`"
         )
-
     return real_path
 
 
@@ -98,53 +86,84 @@ def _rewrite_tool_arguments(tool_name: str, raw_args: Dict[str, Any]) -> Dict[st
     Harness argument rewrite layer.
     - Resolves input files under ./workspace/input
     - Routes output targets under ./workspace/output/{input_stem}/{output_path}
-    - Ignores non-path options like passwords, flags, and numeric settings
+    - Ignores non‑path options like passwords, flags, and numeric settings
     """
     logger.info(
         f"Harness rewrite tool arguments | tool_name={tool_name}, raw_args={raw_args}"
     )
-    
-    tool_meta = next((item for item in TOOL_REGISTRY if item["name"] == tool_name), None)
+    tool_meta = next(
+        (item for item in TOOL_REGISTRY if item["name"] == tool_name), None
+    )
     if not tool_meta:
         raise HarnessError(f"Unknown tool registered: `{tool_name}`")
 
     rewritten = raw_args.copy()
 
+    # ===== PDF_MERGE SPECIAL FIX =====
+    # pdf_merge inputs must always be single string, never list.
+    # Even if LLM outputs list, convert to space‑separated string first.
+    if tool_name == "pdf_merge" and "inputs" in rewritten:
+        val = rewritten["inputs"]
+        if isinstance(val, list):
+            rewritten["inputs"] = " ".join(val)
+    # =================================
+
     # 1. First pass: find primary input file stem for organizing output subfolder
     primary_stem = "default_output"
     raw_inputs = raw_args.get("inputs") or raw_args.get("input") or raw_args.get("file")
-    
     if raw_inputs:
-        first_file = raw_inputs[0] if isinstance(raw_inputs, list) else raw_inputs
+        if tool_name == "pdf_merge" and isinstance(raw_inputs, str):
+            # split string to get first logical filename for primary_stem
+            import re
+            parts = re.split(r"[,\s]+", raw_inputs.strip())
+            first_file = parts[0] if parts else ""
+        else:
+            first_file = raw_inputs[0] if isinstance(raw_inputs, list) else raw_inputs
+
         if isinstance(first_file, str) and first_file.strip():
             primary_stem = Path(first_file).stem
 
     # 2. Second pass: rewrite parameters explicitly matching registered flags
     for param in tool_meta.get("parameters", []):
         arg_key = param["flag"].lstrip("-")
-        val = raw_args.get(arg_key)
-
+        val = rewritten.get(arg_key)
         if val is None:
             continue
-
         param_type = param.get("type", "").lower()
         param_desc = param.get("desc", "").lower()
 
-        # Explicitly skip non-file options (e.g., passwords, credentials, numerical options)
-        if any(keyword in arg_key for keyword in ["pass", "password", "key", "token", "limit", "count"]):
+        # Explicitly skip non‑file options (e.g., passwords, credentials, numerical options)
+        if any(
+            keyword in arg_key
+            for keyword in ["pass", "password", "key", "token", "limit", "count"]
+        ):
             continue
 
         # Check if parameter specifies input file(s)
-        is_input = arg_key in ["inputs", "input", "file", "src"] or "input" in param_desc or "source" in param_desc
+        is_input = (
+            arg_key in ["inputs", "input", "file", "src"]
+            or "input" in param_desc
+            or "source" in param_desc
+        )
         # Check if parameter specifies output destination
-        is_output = arg_key in ["output", "out", "dest", "destination"] or "output" in param_desc
+        is_output = (
+            arg_key in ["output", "out", "dest", "destination"]
+            or "output" in param_desc
+        )
 
         if is_input:
-            if isinstance(val, list):
-                rewritten[arg_key] = [str(_safe_resolve_input(str(f))) for f in val]
+            # ===== PDF_MERGE SPECIAL FIX: inputs is single string with multiple logical filenames =====
+            if tool_name == "pdf_merge" and arg_key == "inputs" and isinstance(val, str):
+                import re
+                logical_names = [f.strip() for f in re.split(r"[,\s]+", val) if f.strip()]
+                resolved_paths = [str(_safe_resolve_input(name)) for name in logical_names]
+                # join absolute paths back into ONE single string for --inputs cli argument
+                rewritten[arg_key] = " ".join(resolved_paths)
             else:
-                rewritten[arg_key] = str(_safe_resolve_input(str(val)))
-
+                if isinstance(val, list):
+                    rewritten[arg_key] = [str(_safe_resolve_input(str(f))) for f in val]
+                else:
+                    rewritten[arg_key] = str(_safe_resolve_input(str(val)))
         elif is_output:
             if isinstance(val, list):
                 resolved_list = []
@@ -156,7 +175,11 @@ def _rewrite_tool_arguments(tool_name: str, raw_args: Dict[str, Any]) -> Dict[st
             else:
                 target_path = _safe_resolve_output(str(val), primary_stem)
                 # If output specifies a directory name or target file, ensure parent folder structure exists
-                target_path.mkdir(parents=True, exist_ok=True) if "." not in target_path.name else target_path.parent.mkdir(parents=True, exist_ok=True)
+                (
+                    target_path.mkdir(parents=True, exist_ok=True)
+                    if "." not in target_path.name
+                    else target_path.parent.mkdir(parents=True, exist_ok=True)
+                )
                 rewritten[arg_key] = str(target_path)
 
     return rewritten
@@ -178,7 +201,7 @@ def load_session(sid: str) -> Dict | None:
     if not p.exists():
         logger.debug(f"load_session sid={sid} not found")
         return None
-    with open(p, "r", encoding="utf-8") as f:
+    with open(p, "r", encoding="utf‑8") as f:
         data = json.load(f)
     # backward compatibility: legacy file is plain list of messages
     if isinstance(data, list):
@@ -218,9 +241,8 @@ def save_session(sid: str, messages: List[Dict], title: str = None):
         meta["updated_at"] = now_iso
         if title is not None:
             meta["title"] = title
-
     payload = {"metadata": meta, "messages": messages}
-    with open(p, "w", encoding="utf-8") as f:
+    with open(p, "w", encoding="utf‑8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)
     logger.info(
         f"save_session sid={sid}, title={meta['title']}, message_count={len(messages)}"
@@ -275,7 +297,7 @@ def create_new_session() -> tuple[str, List[Dict]]:
             + "\n".join(param_lines)
         )
     tool_list_text = "\n---\n".join(tool_lines)
-    #system_content = SYSTEM_PROMPT_TPL.format(tool_list_text=tool_list_text)
+    # system_content = SYSTEM_PROMPT_TPL.format(tool_list_text=tool_list_text)
     system_content = SYSTEM_PROMPT_TPL.replace("{tool_list_text}", tool_list_text)
     sid = str(uuid.uuid4())
     msg_history = [{"role": "system", "content": system_content}]
@@ -299,7 +321,6 @@ def run_tool(tool_name: str, tool_args: Dict[str, Any]) -> Dict[str, Any]:
         err_msg = f"Error: unknown tool `{tool_name}`"
         logger.error(err_msg)
         return {"ok": False, "stdout": "", "stderr": err_msg, "returncode": -1}
-
     try:
         # Harness: rewrite logical filenames to real filesystem paths, apply sandbox rules
         rewritten_args = _rewrite_tool_arguments(tool_name, tool_args)
@@ -321,10 +342,14 @@ def run_tool(tool_name: str, tool_args: Dict[str, Any]) -> Dict[str, Any]:
         if val is None:
             continue
         cmd.append(flag)
-        if isinstance(val, list):
-            cmd.extend(val)
-        else:
+        # ===== PDF_MERGE SPECIAL FIX: never extend list for pdf_merge inputs =====
+        if tool_name == "pdf_merge" and key == "inputs":
             cmd.append(str(val))
+        else:
+            if isinstance(val, list):
+                cmd.extend(val)
+            else:
+                cmd.append(str(val))
 
     logger.debug(f"run_tool subprocess cmd: {cmd}")
     proc = subprocess.run(cmd, capture_output=True, text=True)
