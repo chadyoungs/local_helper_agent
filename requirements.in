@@ -1,0 +1,8 @@
+ollama
+fastapi
+uvicorn[standard]
+python-multipart
+pdf2image
+Pillow
+rembg
+pypdf

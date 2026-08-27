@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Client Interface</title>
+<style>
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+body {
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    max-width: 920px;
+    margin: 30px auto;
+    padding: 0 20px;
+    background: #f5f7fa;
+    color: #1e293b;
+}
+.wrap {
+    background: #ffffff;
+    padding: 28px;
+    border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+}
+.loading {
+    position: fixed;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #2b65ec;
+    color: #ffffff;
+    padding: 9px 16px;
+    border-radius: 8px;
+    display: none;
+    z-index: 100;
+    box-shadow: 0 2px 8px rgba(43,101,236,0.3);
+}
+.toast-error {
+    position: fixed;
+    top: 64px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #d63031;
+    color: #ffffff;
+    padding: 10px 18px;
+    border-radius: 8px;
+    display: none;
+    z-index: 100;
+    box-shadow: 0 2px 8px rgba(214,48,49,0.3);
+    max-width: 90%;
+}
+.row {
+    margin: 16px 0;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    font-size: 14px;
+    resize: vertical;
+    font-family: inherit;
+}
+button {
+    padding: 10px 18px;
+    background: #2b65ec;
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.2s;
+}
+button:hover {
+    background: #1d4ed8;
+}
+button:disabled {
+    background: #94a3b8;
+    cursor: not-allowed;
+}
+.btn-reset {
+    background: #64748b;
+}
+.btn-reset:hover {
+    background: #475569;
+}
+.info-text {
+    color: #475569;
+    font-size: 14px;
+    margin: 8px 0;
+}
+pre {
+    margin-top: 18px;
+    padding: 16px;
+    background: #1e293b;
+    color: #e2e8f0;
+    border-radius: 8px;
+    overflow: auto;
+    min-height: 220px;
+    white-space: pre-wrap;
+    font-size: 13px;
+    line-height: 1.5;
+    font-family: "Courier New", Courier, monospace;
+}
+.session-tag {
+    display: inline-block;
+    background: #e0e7ff;
+    color: #1e40af;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 13px;
+    margin-left: 10px;
+}
+</style>
+</head>
+<body>
+
+<div class="loading" id="loading">Processing request...</div>
+<div class="toast-error" id="toast"></div>
+
+<div class="wrap">
+    <h2>Agent Dashboard</h2>
+    <p class="info-text">
+        Backend Endpoint: http://127.0.0.1:5001
+        <span class="session-tag" id="sessionTag">No Session Active</span>
+    </p>
+
+    <div class="row">
+        <button id="btnCreateSession">Create New Session</button>
+        <button id="btnReset" class="btn-reset">Clear Output</button>
+    </div>
+
+    <div style="margin-top: 16px;">
+        <label for="userInput" style="font-size: 14px; display: block; margin-bottom: 6px; font-weight: 600;">
+            Prompt / Instruction
+        </label>
+        <textarea id="userInput" rows="3" placeholder="Type your message or instruction here..."></textarea>
+    </div>
+
+    <div class="row">
+        <button id="btnSend">Send Message</button>
+    </div>
+
+    <pre id="output">// System output logs will appear here...</pre>
+</div>
+
+<script>
+const BACKEND_URL = "http://127.0.0.1:5001";
+
+const loadingDom = document.getElementById("loading");
+const toastDom = document.getElementById("toast");
+const outputDom = document.getElementById("output");
+const btnCreate = document.getElementById("btnCreateSession");
+const btnReset = document.getElementById("btnReset");
+const btnSend = document.getElementById("btnSend");
+const userInputDom = document.getElementById("userInput");
+const sessionTagDom = document.getElementById("sessionTag");
+
+let isProcessing = false;
+let currentSessionId = null;
+
+function showToast(message) {
+    toastDom.innerText = message;
+    toastDom.style.display = "block";
+    setTimeout(() => {
+        toastDom.style.display = "none";
+    }, 3400);
+}
+
+function appendLog(text) {
+    outputDom.innerText += text;
+    outputDom.scrollTop = outputDom.scrollHeight;
+}
+
+// Create a new session
+btnCreate.addEventListener("click", async () => {
+    if (isProcessing) return;
+    
+    isProcessing = true;
+    btnCreate.disabled = true;
+    loadingDom.style.display = "block";
+
+    try {
+        const response = await fetch(`${BACKEND_URL}/new_session`, {
+            method: "POST"
+        });
+
+        if (!response.ok) {
+            throw new Error(`Server returned HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        currentSessionId = data.session_id;
+        sessionTagDom.innerText = `Session ID: ${currentSessionId}`;
+        appendLog(`\n[SYSTEM] Session created successfully. ID: ${currentSessionId}\n`);
+    } catch (error) {
+        showToast("Unable to connect to backend server.");
+        appendLog(`\n[ERROR] Failed to create session: ${error.message}\n`);
+    } finally {
+        loadingDom.style.display = "none";
+        btnCreate.disabled = false;
+        isProcessing = false;
+    }
+});
+
+// Send user message and read stream
+btnSend.addEventListener("click", async () => {
+    if (isProcessing) return;
+
+    const messageText = userInputDom.value.trim();
+    if (!messageText) {
+        showToast("Please enter a valid message.");
+        return;
+    }
+    if (!currentSessionId) {
+        showToast("Please create a new session first.");
+        return;
+    }
+
+    isProcessing = true;
+    btnSend.disabled = true;
+    loadingDom.style.display = "block";
+    appendLog(`\n[USER]: ${messageText}\n[ASSISTANT]: `);
+
+    try {
+        const response = await fetch(`${BACKEND_URL}/chat`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                session_id: currentSessionId,
+                user_message: messageText
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`Server returned HTTP ${response.status}`);
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop(); // Hold onto incomplete lines
+
+            for (const line of lines) {
+                if (!line.trim()) continue;
+                try {
+                    const data = JSON.parse(line);
+                    
+                    if (data.chunk) {
+                        appendLog(data.chunk);
+                    }
+                    if (data.event === "tool_result") {
+                        appendLog(`\n[TOOL_RESULT]: ${JSON.stringify(data.payload)}\n`);
+                    }
+                    if (data.event === "ask_user") {
+                        appendLog(`\n[CLARIFICATION_NEEDED]: ${data.question}\n`);
+                    }
+                } catch (err) {
+                    console.error("Failed to parse line:", line, err);
+                }
+            }
+        }
+        userInputDom.value = "";
+    } catch (error) {
+        showToast("Error processing request.");
+        appendLog(`\n[ERROR] ${error.message}\n`);
+    } finally {
+        loadingDom.style.display = "none";
+        btnSend.disabled = false;
+        isProcessing = false;
+    }
+});
+
+// Reset display log
+btnReset.addEventListener("click", () => {
+    outputDom.innerText = "// System output logs will appear here...";
+});
+</script>
+</body>
+</html>
