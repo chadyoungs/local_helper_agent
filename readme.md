@@ -57,7 +57,7 @@ python3 backend.py
 
 ### pdf_merge
 
-Merge multiple PDF files into one single PDF file.
+Merge multiple PDF files into one single PDF file, blank PDF file can be inserted into the merged file.
 Input: logical filenames located in `workspace/input`
 Output: merged PDF saved to `workspace/output`
 
