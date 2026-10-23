@@ -5,18 +5,6 @@ from pdf2image import convert_from_path
 
 # Convert the PDF pages to a list of images
 # If on Windows and Poppler is not in PATH, you must specify the poppler_path argument
-password_dict = {
-    "2025": "205433",
-    "2024": "000023",
-    "2023": "135432",
-    "2022": "355144",
-    "2021": "413304",
-    "2020": "312315",
-    "2019": "001051",
-    "2018": "441151",
-    "2017": "412441",
-    "2016": "413450",
-}
 
 
 def pdf2img(pdf_file_list, output_folder, passwords):

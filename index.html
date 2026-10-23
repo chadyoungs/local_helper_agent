@@ -3,293 +3,419 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Agent Client Interface</title>
+<title>Local Helper Agent</title>
 <style>
-* {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
+:root {
+  --bg: #f5f7fa;
+  --panel: #ffffff;
+  --ink: #1e293b;
+  --muted: #64748b;
+  --accent: #2b65ec;
+  --accent-dark: #1d4ed8;
+  --border: #e2e8f0;
+  --danger: #d63031;
+  --code-bg: #1e293b;
+  --code-ink: #e2e8f0;
+  --radius: 10px;
 }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
 body {
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    max-width: 920px;
-    margin: 30px auto;
-    padding: 0 20px;
-    background: #f5f7fa;
-    color: #1e293b;
-}
-.wrap {
-    background: #ffffff;
-    padding: 28px;
-    border-radius: 12px;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
-}
-.loading {
-    position: fixed;
-    top: 16px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: #2b65ec;
-    color: #ffffff;
-    padding: 9px 16px;
-    border-radius: 8px;
-    display: none;
-    z-index: 100;
-    box-shadow: 0 2px 8px rgba(43,101,236,0.3);
-}
-.toast-error {
-    position: fixed;
-    top: 64px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: #d63031;
-    color: #ffffff;
-    padding: 10px 18px;
-    border-radius: 8px;
-    display: none;
-    z-index: 100;
-    box-shadow: 0 2px 8px rgba(214,48,49,0.3);
-    max-width: 90%;
-}
-.row {
-    margin: 16px 0;
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-    align-items: center;
-}
-textarea {
-    width: 100%;
-    padding: 10px 12px;
-    border: 1px solid #cbd5e1;
-    border-radius: 6px;
-    font-size: 14px;
-    resize: vertical;
-    font-family: inherit;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg); color: var(--ink); display: flex; height: 100vh;
 }
 button {
-    padding: 10px 18px;
-    background: #2b65ec;
-    color: #ffffff;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 14px;
-    transition: background-color 0.2s;
+  font: inherit; cursor: pointer; border: none; border-radius: 6px;
+  padding: 7px 14px; background: var(--accent); color: #fff; transition: background .15s;
 }
-button:hover {
-    background: #1d4ed8;
-}
-button:disabled {
-    background: #94a3b8;
-    cursor: not-allowed;
-}
-.btn-reset {
-    background: #64748b;
-}
-.btn-reset:hover {
-    background: #475569;
-}
-.info-text {
-    color: #475569;
-    font-size: 14px;
-    margin: 8px 0;
-}
-pre {
-    margin-top: 18px;
-    padding: 16px;
-    background: #1e293b;
-    color: #e2e8f0;
-    border-radius: 8px;
-    overflow: auto;
-    min-height: 220px;
-    white-space: pre-wrap;
-    font-size: 13px;
-    line-height: 1.5;
-    font-family: "Courier New", Courier, monospace;
-}
-.session-tag {
-    display: inline-block;
-    background: #e0e7ff;
-    color: #1e40af;
-    padding: 4px 10px;
-    border-radius: 4px;
-    font-size: 13px;
-    margin-left: 10px;
-}
+button:hover { background: var(--accent-dark); }
+button:disabled { background: #94a3b8; cursor: not-allowed; }
+button.ghost { background: transparent; color: var(--muted); }
+button.ghost:hover { background: #eef2f7; color: var(--ink); }
+button.danger { background: var(--danger); }
+input, textarea { font: inherit; }
+.icon-btn { background: transparent; border: none; color: var(--muted); font-size: 15px;
+  padding: 2px 6px; border-radius: 4px; cursor: pointer; }
+.icon-btn:hover { background: #e2e8f0; color: var(--ink); }
+
+/* Sidebar */
+.sidebar { width: 270px; min-width: 270px; background: var(--panel); border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; }
+.sidebar-header { padding: 14px 16px; border-bottom: 1px solid var(--border); }
+.sidebar-header h2 { font-size: 15px; }
+.sidebar-actions { display: flex; gap: 8px; padding: 12px 12px 6px; }
+.sidebar-actions button { flex: 1; }
+.session-list { flex: 1; overflow-y: auto; padding: 6px; }
+.session-item { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-radius: 6px;
+  cursor: pointer; color: var(--ink); }
+.session-item:hover { background: #f1f5f9; }
+.session-item.active { background: #e0e7ff; font-weight: 600; }
+.session-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+.session-tools { opacity: 0; display: flex; gap: 2px; }
+.session-item:hover .session-tools { opacity: 1; }
+
+/* Files panel */
+.files-panel { border-top: 1px solid var(--border); padding: 12px; max-height: 200px; overflow-y: auto; }
+.files-panel h3 { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; }
+.file-row { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 3px 0; }
+.file-row .fname { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-row .fsize { color: var(--muted); font-size: 12px; }
+.upload-row { display: flex; gap: 6px; margin-top: 8px; }
+.upload-row input[type=file] { font-size: 12px; flex: 1; }
+
+/* Main chat */
+.main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.chat-header { padding: 14px 20px; border-bottom: 1px solid var(--border); background: var(--panel);
+  display: flex; align-items: center; gap: 10px; }
+.chat-header .session-tag { background: #e0e7ff; color: #1e40af; padding: 4px 10px; border-radius: 4px; font-size: 13px; }
+.chat-header .model-tag { color: var(--muted); font-size: 12px; }
+#messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+.msg { max-width: 85%; padding: 12px 14px; border-radius: var(--radius); line-height: 1.55; font-size: 14px; white-space: normal; word-break: break-word; }
+.msg.user { align-self: flex-end; background: var(--accent); color: #fff; }
+.msg.assistant { align-self: flex-start; background: var(--panel); border: 1px solid var(--border); }
+.msg.tool { align-self: flex-start; background: #f1f5f9; border: 1px solid var(--border); font-family: "Courier New", monospace; font-size: 12.5px; white-space: pre-wrap; }
+.msg .label { display: block; font-size: 12px; font-weight: 700; margin-bottom: 4px; color: var(--muted); }
+.msg.user .label { color: #e0e7ff; }
+.tool-call-panel { background: #f8fafc; border: 1px solid var(--border); border-radius: 6px; margin-top: 8px; font-family: "Courier New", monospace; font-size: 12.5px; overflow: hidden; }
+.tool-call-head { padding: 6px 10px; background: #eef2f7; font-weight: 600; cursor: pointer; }
+.tool-call-body { padding: 8px 10px; white-space: pre-wrap; display: none; }
+.tool-call-body.open { display: block; }
+
+/* Input */
+.input-bar { padding: 14px 20px; background: var(--panel); border-top: 1px solid var(--border); }
+#userInput { width: 100%; padding: 11px 13px; border: 1px solid #cbd5e1; border-radius: 8px;
+  resize: vertical; min-height: 58px; font-size: 14px; line-height: 1.5; }
+.input-row { display: flex; gap: 10px; margin-top: 8px; justify-content: flex-end; }
+
+/* Toast + loading */
+#loading { position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+  background: var(--accent); color: #fff; padding: 9px 16px; border-radius: 8px;
+  display: none; z-index: 200; box-shadow: 0 2px 8px rgba(43,101,236,.3); }
+#toast { position: fixed; top: 64px; left: 50%; transform: translateX(-50%);
+  background: var(--danger); color: #fff; padding: 10px 18px; border-radius: 8px;
+  display: none; z-index: 200; max-width: 90%; }
+
+/* Ask-user modal */
+.modal-mask { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: none;
+  align-items: center; justify-content: center; z-index: 300; }
+.modal { background: #fff; border-radius: 10px; padding: 22px; width: 460px; max-width: 92%; box-shadow: 0 8px 30px rgba(0,0,0,.2); }
+.modal h3 { margin-bottom: 8px; }
+.modal .q { color: var(--ink); font-size: 14px; margin-bottom: 14px; }
+.modal input { width: 100%; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 6px; margin-bottom: 14px; }
+.modal .actions { display: flex; gap: 10px; justify-content: flex-end; }
+
+/* Markdown-lite styles */
+.msg.assistant pre { background: var(--code-bg); color: var(--code-ink); padding: 10px 12px; border-radius: 6px; overflow-x: auto; font-size: 13px; margin: 6px 0; }
+.msg.assistant code { background: #eef2f7; color: #be185d; padding: 1px 5px; border-radius: 4px; font-size: 13px; }
+.msg.assistant pre code { background: none; color: inherit; padding: 0; }
+.msg.assistant h1, .msg.assistant h2, .msg.assistant h3 { margin: 8px 0 4px; }
+.msg.assistant ul, .msg.assistant ol { padding-left: 20px; margin: 6px 0; }
+.msg.assistant a { color: var(--accent); }
+.msg.assistant table { border-collapse: collapse; margin: 6px 0; }
+.msg.assistant th, .msg.assistant td { border: 1px solid var(--border); padding: 4px 8px; font-size: 13px; }
+.empty-hint { color: var(--muted); text-align: center; margin-top: 40px; font-size: 14px; }
 </style>
 </head>
 <body>
 
-<div class="loading" id="loading">Processing request...</div>
-<div class="toast-error" id="toast"></div>
+<div id="loading">Processing request...</div>
+<div id="toast"></div>
 
-<div class="wrap">
-    <h2>Agent Dashboard</h2>
-    <p class="info-text">
-        Backend Endpoint: http://127.0.0.1:5001
-        <span class="session-tag" id="sessionTag">No Session Active</span>
-    </p>
-
-    <div class="row">
-        <button id="btnCreateSession">Create New Session</button>
-        <button id="btnReset" class="btn-reset">Clear Output</button>
+<!-- Sidebar -->
+<aside class="sidebar">
+  <div class="sidebar-header"><h2>🧭 Local Helper Agent</h2></div>
+  <div class="sidebar-actions">
+    <button id="btnNewSession">+ New Session</button>
+  </div>
+  <div id="sessionList" class="session-list"></div>
+  <div class="files-panel">
+    <h3>Uploaded files</h3>
+    <div id="fileList"></div>
+    <div class="upload-row">
+      <input type="file" id="fileInput" multiple>
+      <button id="btnUpload">Upload</button>
     </div>
+  </div>
+</aside>
 
-    <div style="margin-top: 16px;">
-        <label for="userInput" style="font-size: 14px; display: block; margin-bottom: 6px; font-weight: 600;">
-            Prompt / Instruction
-        </label>
-        <textarea id="userInput" rows="3" placeholder="Type your message or instruction here..."></textarea>
+<!-- Main -->
+<main class="main">
+  <div class="chat-header">
+    <span class="session-tag" id="sessionTag">No session selected</span>
+    <span class="model-tag" id="modelTag"></span>
+  </div>
+  <div id="messages"></div>
+  <div class="input-bar">
+    <textarea id="userInput" placeholder="Type a message or instruction... (Enter to send, Shift+Enter for newline)"></textarea>
+    <div class="input-row">
+      <button id="btnClear" class="ghost">Clear screen</button>
+      <button id="btnSend">Send</button>
     </div>
+  </div>
+</main>
 
-    <div class="row">
-        <button id="btnSend">Send Message</button>
+<!-- Ask-user modal -->
+<div class="modal-mask" id="askMask">
+  <div class="modal">
+    <h3>Clarification needed</h3>
+    <div class="q" id="askQuestion"></div>
+    <input id="askInput" placeholder="Type your answer here...">
+    <div class="actions">
+      <button class="ghost" id="askCancel">Cancel</button>
+      <button id="askSubmit">Submit</button>
     </div>
-
-    <pre id="output">// System output logs will appear here...</pre>
+  </div>
 </div>
 
 <script>
-const BACKEND_URL = "http://127.0.0.1:5001";
+const API = "http://127.0.0.1:5001";
+const $ = (id) => document.getElementById(id);
+const loadingDom = $("loading"), toastDom = $("toast");
+const msgDom = $("messages"), sessionListDom = $("sessionList");
+const userInput = $("userInput"), sessionTag = $("sessionTag");
+const askMask = $("askMask"), askQuestion = $("askQuestion"), askInput = $("askInput");
 
-const loadingDom = document.getElementById("loading");
-const toastDom = document.getElementById("toast");
-const outputDom = document.getElementById("output");
-const btnCreate = document.getElementById("btnCreateSession");
-const btnReset = document.getElementById("btnReset");
-const btnSend = document.getElementById("btnSend");
-const userInputDom = document.getElementById("userInput");
-const sessionTagDom = document.getElementById("sessionTag");
-
-let isProcessing = false;
 let currentSessionId = null;
+let isProcessing = false;
+let pendingAsk = false;
 
-function showToast(message) {
-    toastDom.innerText = message;
-    toastDom.style.display = "block";
-    setTimeout(() => {
-        toastDom.style.display = "none";
-    }, 3400);
+function showToast(msg){ toastDom.innerText = msg; toastDom.style.display = "block";
+  setTimeout(()=> toastDom.style.display = "none", 3400); }
+function setLoading(on){ loadingDom.style.display = on ? "block" : "none"; $("btnSend").disabled = on; }
+
+/* ---------------- Markdown-lite renderer (XSS-safe) ---------------- */
+function esc(s){ return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function renderMd(text){
+  // escape first, then tokenize code blocks before inline rules
+  const escaped = esc(text);
+  const parts = [];
+  let rest = escaped;
+  const re = /```([\s\S]*?)```/g; let m, last=0;
+  while((m = re.exec(rest))){ parts.push(rest.slice(last, m.index)); parts.push(`<pre><code>${m[1]}</code></pre>`); last = m.index + m[0].length; }
+  parts.push(rest.slice(last));
+  let body = parts.map(p => p.startsWith("<pre>") ? p : inline(p)).join("");
+  return body;
+}
+function inline(s){
+  s = s.replace(/`([^`]+)`/g, (_,c)=>`<code>${c}</code>`);
+  s = s.replace(/^### (.*)$/gm, "<h3>$1</h3>");
+  s = s.replace(/^## (.*)$/gm, "<h2>$1</h2>");
+  s = s.replace(/^# (.*)$/gm, "<h1>$1</h1>");
+  s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  s = s.replace(/(^|\n)- (.*)/g, "$1• $2");
+  s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  s = s.replace(/(\n|^)(\d+)\. (.*)/g, "$1<strong>$2.</strong> $3");
+  s = s.replace(/\n/g, "<br>");
+  return s;
 }
 
-function appendLog(text) {
-    outputDom.innerText += text;
-    outputDom.scrollTop = outputDom.scrollHeight;
+/* ---------------- Messages ---------------- */
+function addMsg(role, content, extra = {}){
+  const box = document.createElement("div");
+  box.className = "msg " + role;
+  if(role === "assistant"){ const label = document.createElement("span"); label.className="label"; label.textContent="Assistant"; box.appendChild(label);
+    const body = document.createElement("div"); body.innerHTML = renderMd(content); box.appendChild(body); }
+  else if(role === "user"){ const label = document.createElement("span"); label.className="label"; label.textContent="You"; box.appendChild(label);
+    const body = document.createElement("div"); body.innerHTML = renderMd(content); box.appendChild(body); }
+  else { box.textContent = content; }
+  msgDom.appendChild(box); msgDom.scrollTop = msgDom.scrollHeight;
+  return box;
+}
+function addToolCall(tool, args){
+  const box = document.createElement("div"); box.className="msg tool";
+  const panel = document.createElement("div"); panel.className="tool-call-panel";
+  const head = document.createElement("div"); head.className="tool-call-head";
+  head.textContent = `⚙ ${tool}`;
+  const body = document.createElement("div"); body.className="tool-call-body";
+  body.textContent = JSON.stringify(args, null, 2);
+  head.addEventListener("click", ()=> body.classList.toggle("open"));
+  panel.appendChild(head); panel.appendChild(body); box.appendChild(panel);
+  msgDom.appendChild(box); msgDom.scrollTop = msgDom.scrollHeight;
+}
+function addToolResult(tool, payload){
+  const box = document.createElement("div"); box.className="msg tool";
+  const label = document.createElement("span"); label.className="label"; label.textContent=`Tool result · ${tool}`;
+  const pre = document.createElement("div"); pre.textContent =
+    (payload.stdout||"") + (payload.stderr ? "\n[stderr] " + payload.stderr : "") +
+    (payload.timed_out ? "\n[timed out]" : "") + `\n[returncode ${payload.returncode}]`;
+  box.appendChild(label); box.appendChild(pre);
+  msgDom.appendChild(box); msgDom.scrollTop = msgDom.scrollHeight;
+}
+function clearMsgs(){ msgDom.innerHTML = ""; }
+
+/* ---------------- Sessions ---------------- */
+async function loadSessions(){
+  try{
+    const res = await fetch(`${API}/sessions`);
+    if(!res.ok) throw new Error("HTTP " + res.status);
+    const data = await res.json();
+    sessionListDom.innerHTML = "";
+    if(!data.sessions.length){ sessionListDom.innerHTML = '<div class="empty-hint">No sessions yet</div>'; return; }
+    data.sessions.forEach(s => {
+      const item = document.createElement("div");
+      item.className = "session-item" + (s.session_id === currentSessionId ? " active":"");
+      const title = document.createElement("span"); title.className="session-title"; title.textContent = s.title;
+      title.addEventListener("click", ()=> switchSession(s.session_id));
+      const tools = document.createElement("span"); tools.className="session-tools";
+      const renameBtn = document.createElement("button"); renameBtn.className="icon-btn"; renameBtn.title="Rename"; renameBtn.textContent="✎";
+      const delBtn = document.createElement("button"); delBtn.className="icon-btn"; delBtn.title="Delete"; delBtn.textContent="🗑";
+      renameBtn.addEventListener("click", (e)=>{ e.stopPropagation(); renameSession(s); });
+      delBtn.addEventListener("click", (e)=>{ e.stopPropagation(); deleteSession(s.session_id); });
+      tools.appendChild(renameBtn); tools.appendChild(delBtn);
+      item.appendChild(title); item.appendChild(tools);
+      sessionListDom.appendChild(item);
+    });
+  }catch(e){ showToast("Failed to load sessions: " + e.message); }
+}
+function switchSession(sid){
+  currentSessionId = sid;
+  sessionTag.textContent = "Session: " + sid.slice(0,8);
+  loadSessionMessages(sid); loadSessions();
+}
+async function loadSessionMessages(sid){
+  try{
+    const res = await fetch(`${API}/session/${sid}`);
+    if(!res.ok) throw new Error("HTTP " + res.status);
+    const data = await res.json();
+    clearMsgs();
+    data.messages.forEach(m => {
+      if(m.role === "user") addMsg("user", m.content);
+      else if(m.role === "assistant"){
+        // assistant content may be a stored decision JSON or a final answer
+        try{ const d = JSON.parse(m.content);
+          if(d.tool_name) addToolCall(d.tool_name, d.tool_args);
+          else if(d.question) addMsg("assistant", "[asked] " + d.question);
+          else if(d.final_answer) addMsg("assistant", d.final_answer);
+          else addMsg("assistant", m.content);
+        }catch(_){ addMsg("assistant", m.content); }
+      }
+      else if(m.role === "tool"){ addToolResult(m.name || "tool", {stdout: m.content, stderr:"", returncode:0}); }
+    });
+  }catch(e){ showToast("Failed to load session: " + e.message); }
+}
+async function createSession(){
+  setLoading(true);
+  try{
+    const res = await fetch(`${API}/new_session`, {method:"POST"});
+    const data = await res.json();
+    currentSessionId = data.session_id;
+    sessionTag.textContent = "Session: " + currentSessionId.slice(0,8);
+    clearMsgs(); loadSessions();
+  }catch(e){ showToast("Failed to create session: " + e.message); }
+  finally{ setLoading(false); }
+}
+async function renameSession(s){
+  const newTitle = prompt("Rename session", s.title);
+  if(newTitle === null) return;
+  try{
+    const res = await fetch(`${API}/session/${s.session_id}`, {method:"PATCH",
+      headers:{"Content-Type":"application/json"}, body: JSON.stringify({title:newTitle})});
+    if(!res.ok) throw new Error("HTTP " + res.status);
+    loadSessions();
+  }catch(e){ showToast("Rename failed: " + e.message); }
+}
+async function deleteSession(sid){
+  if(!confirm("Delete this session?")) return;
+  try{
+    await fetch(`${API}/session/${sid}`, {method:"DELETE"});
+    if(currentSessionId === sid){ currentSessionId = null; sessionTag.textContent="No session selected"; clearMsgs(); }
+    loadSessions();
+  }catch(e){ showToast("Delete failed: " + e.message); }
 }
 
-// Create a new session
-btnCreate.addEventListener("click", async () => {
-    if (isProcessing) return;
-    
-    isProcessing = true;
-    btnCreate.disabled = true;
-    loadingDom.style.display = "block";
-
-    try {
-        const response = await fetch(`${BACKEND_URL}/new_session`, {
-            method: "POST"
-        });
-
-        if (!response.ok) {
-            throw new Error(`Server returned HTTP ${response.status}`);
-        }
-
-        const data = await response.json();
-        currentSessionId = data.session_id;
-        sessionTagDom.innerText = `Session ID: ${currentSessionId}`;
-        appendLog(`\n[SYSTEM] Session created successfully. ID: ${currentSessionId}\n`);
-    } catch (error) {
-        showToast("Unable to connect to backend server.");
-        appendLog(`\n[ERROR] Failed to create session: ${error.message}\n`);
-    } finally {
-        loadingDom.style.display = "none";
-        btnCreate.disabled = false;
-        isProcessing = false;
+/* ---------------- Files ---------------- */
+async function loadFiles(){
+  try{
+    const res = await fetch(`${API}/files`); const data = await res.json();
+    const list = $("fileList"); list.innerHTML = "";
+    if(!data.files.length){ list.innerHTML = '<div style="color:var(--muted);font-size:12px">No files</div>'; return; }
+    data.files.forEach(f => {
+      const row = document.createElement("div"); row.className="file-row";
+      const name = document.createElement("span"); name.className="fname"; name.textContent = f.name;
+      const size = document.createElement("span"); size.className="fsize"; size.textContent = fmtSize(f.size);
+      row.appendChild(name); row.appendChild(size); list.appendChild(row);
+    });
+  }catch(e){ /* ignore */ }
+}
+function fmtSize(n){ if(n<1024) return n+" B"; if(n<1048576) return (n/1024).toFixed(1)+" KB"; return (n/1048576).toFixed(1)+" MB"; }
+async function uploadFiles(){
+  const input = $("fileInput");
+  if(!input.files.length) return showToast("Choose a file first");
+  setLoading(true);
+  try{
+    for(const file of input.files){
+      const fd = new FormData(); fd.append("file", file);
+      const res = await fetch(`${API}/upload`, {method:"POST", body:fd});
+      if(!res.ok) throw new Error("Upload failed");
     }
+    input.value = ""; showToast("Uploaded " + input.files.length + " file(s)"); loadFiles();
+  }catch(e){ showToast("Upload error: " + e.message); }
+  finally{ setLoading(false); }
+}
+
+/* ---------------- Ask-user modal ---------------- */
+function showAsk(question){
+  pendingAsk = true; askQuestion.textContent = question || "Please provide more information.";
+  askMask.style.display = "flex"; askInput.value = ""; setTimeout(()=>askInput.focus(), 50);
+}
+function hideAsk(){ pendingAsk = false; askMask.style.display = "none"; }
+$("askCancel").addEventListener("click", hideAsk);
+$("askSubmit").addEventListener("click", ()=>{
+  const ans = askInput.value.trim();
+  if(!ans) return showToast("Answer cannot be empty");
+  hideAsk(); sendMessage(ans);
 });
 
-// Send user message and read stream
-btnSend.addEventListener("click", async () => {
-    if (isProcessing) return;
-
-    const messageText = userInputDom.value.trim();
-    if (!messageText) {
-        showToast("Please enter a valid message.");
-        return;
+/* ---------------- Chat ---------------- */
+async function sendMessage(text){
+  if(isProcessing) return;
+  if(!currentSessionId){ showToast("Create or select a session first"); return; }
+  isProcessing = true; setLoading(true);
+  addMsg("user", text);
+  userInput.value = "";
+  try{
+    const res = await fetch(`${API}/chat`, {method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({session_id: currentSessionId, user_message: text})});
+    if(!res.ok) throw new Error("HTTP " + res.status);
+    const reader = res.body.getReader(); const decoder = new TextDecoder();
+    let buffer = "";
+    while(true){
+      const {done, value} = await reader.read(); if(done) break;
+      buffer += decoder.decode(value, {stream:true});
+      const lines = buffer.split("\n"); buffer = lines.pop();
+      for(const line of lines){
+        if(!line.trim()) continue;
+        let ev; try{ ev = JSON.parse(line); }catch(_){ continue; }
+        if(ev.event === "ask_user"){ showAsk(ev.question); }
+        else if(ev.event === "tool_call"){ addToolCall(ev.tool, ev.args); }
+        else if(ev.event === "tool_result"){ addToolResult(ev.tool, ev.payload); }
+        else if(ev.event === "chunk"){ /* final answer rendered via 'final' event */ }
+        else if(ev.event === "final"){ addMsg("assistant", ev.content); }
+        else if(ev.event === "error"){ showToast(ev.message || "Backend error"); }
+      }
     }
-    if (!currentSessionId) {
-        showToast("Please create a new session first.");
-        return;
-    }
+    loadSessions();
+  }catch(e){ showToast("Error: " + e.message); }
+  finally{ isProcessing = false; setLoading(false); }
+}
 
-    isProcessing = true;
-    btnSend.disabled = true;
-    loadingDom.style.display = "block";
-    appendLog(`\n[USER]: ${messageText}\n[ASSISTANT]: `);
-
-    try {
-        const response = await fetch(`${BACKEND_URL}/chat`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                session_id: currentSessionId,
-                user_message: messageText
-            })
-        });
-
-        if (!response.ok) {
-            throw new Error(`Server returned HTTP ${response.status}`);
-        }
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
-
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split("\n");
-            buffer = lines.pop(); // Hold onto incomplete lines
-
-            for (const line of lines) {
-                if (!line.trim()) continue;
-                try {
-                    const data = JSON.parse(line);
-                    
-                    if (data.chunk) {
-                        appendLog(data.chunk);
-                    }
-                    if (data.event === "tool_result") {
-                        appendLog(`\n[TOOL_RESULT]: ${JSON.stringify(data.payload)}\n`);
-                    }
-                    if (data.event === "ask_user") {
-                        appendLog(`\n[CLARIFICATION_NEEDED]: ${data.question}\n`);
-                    }
-                } catch (err) {
-                    console.error("Failed to parse line:", line, err);
-                }
-            }
-        }
-        userInputDom.value = "";
-    } catch (error) {
-        showToast("Error processing request.");
-        appendLog(`\n[ERROR] ${error.message}\n`);
-    } finally {
-        loadingDom.style.display = "none";
-        btnSend.disabled = false;
-        isProcessing = false;
-    }
+/* ---------------- Events ---------------- */
+$("btnNewSession").addEventListener("click", createSession);
+$("btnUpload").addEventListener("click", uploadFiles);
+$("btnSend").addEventListener("click", ()=> sendMessage(userInput.value.trim()));
+$("btnClear").addEventListener("click", clearMsgs);
+userInput.addEventListener("keydown", (e)=>{
+  if(e.key === "Enter" && !e.shiftKey){ e.preventDefault(); sendMessage(userInput.value.trim()); }
 });
+$("askInput").addEventListener("keydown", (e)=>{ if(e.key==="Enter") $("askSubmit").click(); });
 
-// Reset display log
-btnReset.addEventListener("click", () => {
-    outputDom.innerText = "// System output logs will appear here...";
-});
+/* ---------------- Init ---------------- */
+(async function init(){
+  $("modelTag").textContent = "model: " + (API.startsWith("http") ? "local" : "");
+  await loadSessions();
+  await loadFiles();
+})();
 </script>
 </body>
 </html>

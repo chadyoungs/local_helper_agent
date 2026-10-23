@@ -54,7 +54,7 @@ def change_background(input_path: str, output_dir: Path, target_color_hex: str):
     output_filename = f"{Path(input_path).stem}_bg_changed.jpg"
     save_path = output_dir / output_filename
 
-    final.save(str(save_path), "JPEG", quality=200)
+    final.save(str(save_path), "JPEG", quality=95)
     print(f"Background changed successfully: {save_path}")
 
 

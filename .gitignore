@@ -1,5 +1,21 @@
-*.json
-*.in
-*.pdf
-*.png
-__pacache__
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Local config / secrets
+.env
+
+# Runtime-generated data
+sessions/*.json
+workspace/input/*
+workspace/output/*
+!workspace/input/.gitkeep
+!workspace/output/.gitkeep
+
+# Keep the built-in blank PDF asset (used by pdf_merge)
+!statics/blank.pdf
+
+# Test artifacts
+tests/_test_ws*/

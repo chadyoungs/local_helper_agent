@@ -1,3 +1,5 @@
+# Runtime dependencies. Regenerate requirements.txt with:
+#   pip-compile requirements.in
 ollama
 fastapi
 uvicorn[standard]
@@ -6,3 +8,6 @@ pdf2image
 Pillow
 rembg
 pypdf
+
+# Dev / test dependencies:  pip install -r requirements-dev.txt
+pytest
