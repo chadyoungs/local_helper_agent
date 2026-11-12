@@ -18,8 +18,9 @@ workspace/output/*
 !workspace/input/.gitkeep
 !workspace/output/.gitkeep
 
-# Keep the built-in blank PDF asset (used by pdf_merge)
+# Keep the built-in blank PDF asset (used by pdf_merge) and screenshot for the README
 !statics/blank.pdf
+!statics/Screenshot.png
 
 # Test artifacts
 tests/_test_ws*/

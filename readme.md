@@ -6,7 +6,7 @@ compatible) as inference backends, uses a **harness sandbox** to isolate tools
 from the filesystem, and follows a real **agentic loop**
 (`plan -> tool -> observe -> conclude`) instead of one-shot tool dispatch.
 
-Runs on **Python 3.9 and newer**.
+![Screenshot](./statics/Screenshot.png)
 
 ## Highlights
 
@@ -26,9 +26,6 @@ Runs on **Python 3.9 and newer**.
   paths and `../` traversal are blocked, missing files return clean errors, and
   tool tracebacks never leak to the user.
 - **Tool isolation** — each tool runs in a subprocess with a timeout.
-- **Signature / fingerprint cutout** — removes the photographed paper background
-  and returns a transparent RGBA PNG, with a locally-estimated paper level so
-  uneven lighting and dark corners are not mistaken for ink.
 - **Inline questions, no pop-ups** — when the agent needs clarification it
   appears as a message in the conversation stream and you answer in the message
   box; there is no modal window.
@@ -105,6 +102,7 @@ python3 -m venv .venv
 1. In LM Studio, load a model, then click **Developer** (bottom-right) so the
    OpenAI-compatible server turns on at `http://127.0.0.1:1234/v1`.
 2. Install the OpenAI client and configure:
+3. Following the steps previous described.
 
 ```bash
 pip install openai
@@ -112,25 +110,11 @@ pip install openai
 #   LLM_PROVIDER=lmstudio
 #   LMSTUDIO_BASE_URL=http://127.0.0.1:1234
 #   OLLAMA_MODEL=<exact model name from LM Studio's Developer tab>
-python3 backend.py
 ```
 
 > **Note on `rembg`:** the ID-photo tool needs `rembg`, which downloads an
 > `.onnx` model from GitHub on first use. It is kept out of the base install:
 > `python3 -m pip install -r requirements-extra.txt`.
-
-## Inference backends
-
-The LLM layer is split into **transports** (provider-specific API adapters) and
-**strategies** (provider-agnostic decision logic):
-
-- `OllamaTransport` — native `/api/chat` (Ollama package).
-- `LMStudioTransport` — OpenAI-compatible `/v1/chat/completions` (OpenAI package,
-  imported lazily; JSON mode uses `response_format={"type":"json_object"}`).
-- `JSONStructuredLLMClient` / `NativeToolLLMClient` — run unchanged on either
-  backend. `build_transport(settings)` picks the transport from `LLM_PROVIDER`.
-
-Switch with a single `.env` line; the agent loop and tools are identical.
 
 ## Configuration (`agent/settings.py` + `.env`)
 
@@ -169,45 +153,6 @@ files or sub-folders), then reference them **by name in chat**.
 Outputs are written under `workspace/output/<chat-title>_<timestamp>/` (each
 turn gets its own timestamped folder). Tools never modify input files —
 `pdf_merge` copies its inputs to a staging dir before merging.
-
-## Signature / fingerprint cutout
-
-`tools/signature_fingerprint_cutout.py` turns a phone photo of a signed sheet
-into a transparent PNG that keeps only the black signature and the red
-fingerprint.
-
-How it works:
-
-1. **Local paper estimate** — a large median filter (computed on a downscaled
-   copy) estimates the paper brightness *per region*, so a vignette or a shadow
-   is not carved out as "ink".
-2. **Black ink** — relative darkness `1 - brightness / paper` mapped through a
-   smooth ramp, which keeps anti-aliased stroke edges.
-3. **Red ink** — HSV **saturation** plus a red hue gate. Saturation separates
-   the stamp from grey/yellow paper far better than "red minus green".
-4. **Solid print** — the paper gaps inside a stamp/fingerprint are closed and
-   repainted with the ink's own median colour (painting them with the paper
-   colour would leave a pale blob).
-5. **Clean-up** — speck removal by connected-component area, optional Gaussian
-   feathering, alpha cutoff, then cropping to the ink bounding box using a
-   strong threshold (so stray noise cannot defeat the crop).
-6. **Write-out** — saved with Pillow as RGBA PNG (OpenCV's `imwrite` would read
-   RGBA as BGRA and silently swap red and blue).
-
-The script prints exactly one JSON object on stdout, for success **and** for
-failure, e.g.:
-
-```json
-{"ok": true, "output": ".../signature_cutout.png",
- "image": {"width": 823, "height": 344},
- "ink_pixels": 42680, "ink_ratio": 0.15075,
- "has_black_ink": true, "has_red_ink": true}
-```
-
-Tuning flags (`--ink-min`, `--ink-full`, `--red-min`, `--red-full`, `--cutoff`)
-are optional and normally left alone; the defaults handle uneven lighting. A
-`.jpg` output name is silently corrected to `.png` (JPEG has no alpha channel)
-and the JSON `note` says so.
 
 ## How the agent loop works
 
@@ -260,73 +205,6 @@ Loop guards (they keep a small model from burning the whole budget on itself):
 - Absolute paths and `../` traversal trigger a `HarnessError`; execution is blocked.
 - Missing inputs return a clean error — no raw Python traceback reaches the UI.
 - Each tool runs via `subprocess` (list argv, no shell), isolated from the agent.
-
-## Python 3.9 compatibility
-
-The code base targets **3.9+**, so two rules apply:
-
-- **Annotations must not use PEP 604 unions** (`str | None`). They parse on 3.9
-  but blow up at runtime when something evaluates them (Pydantic, FastAPI,
-  `dataclasses`). Use `Optional[str]` / `Union[...]`.
-- **No 3.10+ syntax** (`match`, multi-item parenthesised `with`, ...) and no
-  3.11+ APIs (`tomllib`, `typing.Self`, `ExceptionGroup`).
-
-`tests/test_py39_syntax.py` enforces both without needing a 3.9 interpreter:
-every module is parsed with `feature_version=(3, 9)` and every annotation is
-scanned for `|`. Dependency ranges in `requirements.txt` are deliberately
-range-based so the same file installs on 3.9 and on newer interpreters.
-
-## Troubleshooting
-
-**The UI says "failed to create session".** That message means the browser could
-not reach the backend — start it and watch the terminal:
-
-```bash
-.venv/bin/python backend.py
-```
-
-If it exits immediately, the message on stderr says why. Two common causes:
-
-- **`pydantic 1.x` / `fastapi 0.85` in the current environment** — the project
-  uses the Pydantic v2 API, so `backend.py` now prints an explicit hint instead
-  of failing with `has no attribute 'model_validate'`. Create the venv shown in
-  Quick start rather than upgrading a shared conda env.
-- **An outdated `openai` package with `LLM_PROVIDER=lmstudio`** — the app still
-  starts (sessions and the file panel work); `/chat` returns an error event
-  telling you to `pip install -U "openai>=1.0"`. The legacy 0.x SDK is also
-  supported for plain JSON chat.
-
-**A tool reports `ModuleNotFoundError: No module named 'cv2'`.** The tool ran on
-a different interpreter than the server. Tools default to `sys.executable`; if
-you override `TOOL_PYTHON`, make sure it has `numpy` + `opencv-python-headless`
-installed.
-
-**The session list is empty or the app logs "ignoring unreadable session
-file".** A session JSON was truncated (usually by a crash or a full disk). Those
-files are skipped instead of breaking the list; delete them from `sessions/` to
-silence the warning.
-
-**The agent runs the same tool until `I stopped after N steps...`.** It was
-guessing: without the real input listing it invents filenames, each miss costs a
-step, and the budget runs out. Check that the system prompt carries both blocks:
-
-```bash
-.venv/bin/python -c "from agent.tool_registry import SYSTEM_PROMPT; \
-print(len(SYSTEM_PROMPT), '{tool_list_text}' in SYSTEM_PROMPT)"
-```
-
-The placeholder must be **False** and the length should be a few thousand
-characters. A repeated identical call now short-circuits (see "How the agent
-loop works"), so a genuine 5-step loop means the model is still missing context.
-
-**The agent asks "Do you have access to a tool that can ...?"** That question is
-a symptom, not a feature: the tool catalog never reached the prompt. `SYSTEM_PROMPT`
-is an f-string, so `{{tool_list_text}}` rendered as a literal `{tool_list_text}`
-and the model only knew tool names from the "Special cases" prose. It is now
-substituted once at import (`test_system_prompt_carries_the_full_tool_catalog`
-guards against a regression). If you edit the prompt template, never hand a
-placeholder to the model — substitute it, or the model will ask you about
-capabilities you cannot change.
 
 ## Adding a new tool
 
@@ -403,6 +281,3 @@ live model.
 python -m pip install -r requirements-dev.txt
 python -m pytest tests/ -q
 ```
-
-The cutout test needs `numpy`, `opencv-python-headless` and `Pillow`; it is
-skipped automatically when they are missing.
