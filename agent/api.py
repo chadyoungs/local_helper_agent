@@ -11,17 +11,16 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import shutil
-from pathlib import Path
+from typing import Optional
 
-import ollama
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from .agent_loop import AgentRunner
-from .llm_client import AutoLLMClient
+from .harness import build_output_dir_name, list_input_files
+from .llm_client import AutoLLMClient, LLMTransport, build_transport
 from .schemas import ToolSpec
 from .session_store import SessionStore
 from .settings import DEFAULT_SETTINGS, Settings
@@ -40,7 +39,16 @@ class RenameRequest(BaseModel):
     title: str
 
 
-def build_app(settings: Settings = DEFAULT_SETTINGS) -> FastAPI:
+def build_app(
+    settings: Settings = DEFAULT_SETTINGS,
+    transport: Optional[LLMTransport] = None,
+) -> FastAPI:
+    """Build the FastAPI app.
+
+    ``transport`` lets tests (or an embedding caller) inject an LLM transport
+    instead of constructing the Ollama / LM Studio adapter, so the app can be
+    exercised without the provider package installed or a server running.
+    """
     settings.ensure_dirs()
     app = FastAPI(title="Local Helper Agent", version="2.0.0")
 
@@ -55,8 +63,33 @@ def build_app(settings: Settings = DEFAULT_SETTINGS) -> FastAPI:
 
     sessions = SessionStore(settings)
     tool_runner = ToolRunner(settings)
-    llm_client = AutoLLMClient(ollama.Client(host=settings.ollama_base_url), settings)
-    agent = AgentRunner(settings, llm_client, tool_runner)
+
+    # The LLM client is built on FIRST USE, not at import/start-up. A missing or
+    # outdated provider SDK (e.g. openai 0.x with LLM_PROVIDER=lmstudio) used to
+    # abort the whole server, which surfaced in the UI as a useless
+    # "failed to create session". Sessions and /files now work regardless, and
+    # /chat reports the real reason inside its NDJSON error event.
+    _cache: dict = {"client": None, "error": None}
+
+    def _resolve_client():
+        if _cache["client"] is not None:
+            return _cache["client"]
+        if _cache["error"] is not None:
+            raise _cache["error"]
+        try:
+            _cache["client"] = AutoLLMClient(transport or build_transport(settings), settings)
+        except Exception as exc:  # noqa: BLE001 - replayed per request
+            _cache["error"] = exc
+            raise
+        return _cache["client"]
+
+    class _LazyLLMClient:
+        """Proxy that resolves the real client on the first decision."""
+
+        def decide(self, messages, max_steps_remaining):
+            return _resolve_client().decide(messages, max_steps_remaining)
+
+    agent = AgentRunner(settings, _LazyLLMClient(), tool_runner)
 
     # Expose internals so tests can inject a fake LLM / runner.
     app.state.sessions = sessions
@@ -98,29 +131,17 @@ def build_app(settings: Settings = DEFAULT_SETTINGS) -> FastAPI:
     # ------------------------- file APIs ------------------------- #
     @app.get("/files")
     def api_list_files():
-        files = [
-            {"name": p.name, "size": p.stat().st_size}
-            for p in settings.input_root.iterdir()
-            if p.is_file()
-        ]
-        files.sort(key=lambda f: f["name"].lower())
-        return {"files": files}
+        """List EVERY file under workspace/input, sub-folders included.
 
-    @app.post("/upload")
-    async def api_upload(file: UploadFile = File(...)):
-        # Reject dangerous names before they hit the filesystem.
-        name = Path(file.filename or "").name  # strips any directory components
-        if not name:
-            raise HTTPException(status_code=400, detail="Empty filename")
-        if name.startswith("."):
-            raise HTTPException(status_code=400, detail="Hidden files are not allowed")
-        dest = settings.input_root / name
-        try:
-            with dest.open("wb") as out:
-                shutil.copyfileobj(file.file, out)
-        except OSError as exc:
-            raise HTTPException(status_code=500, detail=f"Upload failed: {exc}")
-        return {"ok": True, "name": name, "path": str(dest)}
+        ``name`` is the relative path (``2024/scan.jpg``), which is exactly the
+        logical filename the harness accepts in tool arguments.
+        """
+        files = list_input_files(settings)
+        return {
+            "files": files,
+            "count": len(files),
+            "input_root": str(settings.input_root),
+        }
 
     # ------------------------- chat API ------------------------- #
     @app.post("/chat")
@@ -130,6 +151,8 @@ def build_app(settings: Settings = DEFAULT_SETTINGS) -> FastAPI:
             raise HTTPException(status_code=404, detail="Session not found")
 
         history: list[dict] = list(container.messages)  # snapshot for this turn
+        # Per-turn output folder under workspace/output, named "<chat title>_<time>".
+        output_stem = build_output_dir_name(container.metadata.title)
 
         async def stream():
             # We buffer events and flush them as NDJSON lines in order.
@@ -137,10 +160,10 @@ def build_app(settings: Settings = DEFAULT_SETTINGS) -> FastAPI:
             buffer: deque = deque()
             emit = buffer.append
 
-            error: str | None = None
-            # Run the agent loop in a worker thread (Ollama client is blocking).
+            error: Optional[str] = None
+            # Run the agent loop in a worker thread (the LLM client is blocking).
             try:
-                await asyncio.to_thread(agent.run, history, req.user_message, emit)
+                await asyncio.to_thread(agent.run, history, req.user_message, emit, output_stem)
             except Exception as exc:  # noqa: BLE001 - surface cleanly to client
                 logger.exception("agent loop failed")
                 error = str(exc)
@@ -148,10 +171,15 @@ def build_app(settings: Settings = DEFAULT_SETTINGS) -> FastAPI:
                 sessions.save(req.session_id, history)
 
             if error is not None:
+                backend_hint = (
+                    "Check that Ollama is running (ollama serve)."
+                    if settings.provider == "ollama"
+                    else "Check that LM Studio's local server is running on %s."
+                    % settings.lmstudio_base_url
+                )
                 yield json.dumps({
                     "event": "error",
-                    "message": "Backend error while processing your request. "
-                               "Check that the local Ollama service is running.",
+                    "message": "Backend error while processing your request. " + backend_hint,
                     "detail": error,
                 }, ensure_ascii=False) + "\n"
             else:

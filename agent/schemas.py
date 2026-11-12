@@ -6,6 +6,8 @@ is validated and (b) how tools are described to the LLM.
 
 from __future__ import annotations
 
+import re
+
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
@@ -116,6 +118,17 @@ class AgentDecision(BaseModel):
         return bool(self.final_answer) and not self.need_ask_user and not self.tool_name
 
 
+_WORKSPACE_PATH_RE = re.compile(r"[^\s\"',\[\]]*?/workspace/(input|output)/")
+
+
+def shorten_workspace_paths(text: str) -> str:
+    """Drop the absolute prefix of sandbox paths: ``.../workspace/input/a.pdf``
+    becomes ``workspace/input/a.pdf``. Keeps tool output readable for the model
+    and for the UI without losing where the file actually is.
+    """
+    return _WORKSPACE_PATH_RE.sub(r"workspace/\1/", text)
+
+
 class ToolResult(BaseModel):
     """Unified, sanitized result of running an external tool."""
 
@@ -126,20 +139,43 @@ class ToolResult(BaseModel):
     timed_out: bool = False
 
     def summary(self, max_chars: int = 2000) -> str:
-        """Compact text fed back to the model so history does not blow up."""
-        parts: list[str] = []
-        if self.stdout.strip():
-            parts.append(f"stdout: {self.stdout.strip()}")
-        if self.stderr.strip():
-            parts.append(f"stderr: {self.stderr.strip()}")
-        body = "\n".join(parts)
+        """Compact, model-facing text: a verdict first, then a one-paragraph digest.
+
+        Two things made small local models loop until the step budget ran out:
+        the raw JSON dump buried the success/failure signal, and the model could
+        not tell whether the previous call had already done the job. So the
+        verdict comes first and an explicit "do not repeat" instruction closes it.
+        """
         if self.timed_out:
-            body += "\n[tool timed out]"
-        if not body:
-            body = "(no output)"
-        if len(body) > max_chars:
-            body = body[:max_chars] + "\n...[truncated]"
-        return body
+            verdict = "STATUS: FAILED (tool timed out)"
+        elif self.ok:
+            verdict = "STATUS: OK"
+        else:
+            verdict = "STATUS: FAILED (exit %d)" % self.returncode
+
+        body = (self.stdout or self.stderr).strip() or "(no output)"
+        body = shorten_workspace_paths(body)
+        body = re.sub(r"\s+", " ", body).strip()
+
+        note = (
+            "Do not call this tool again: answer with one final_answer naming the output."
+            if self.ok and not self.timed_out
+            else "Fix the arguments from the error above; do not repeat the identical call."
+        )
+        # The whole message stays within max_chars, so a long tool dump can
+        # never inflate the model context. When the caller asks for a very small
+        # budget, the fixed overhead (verdict + instruction) is dropped first so
+        # the actual result still fits.
+        overhead = len(verdict) + len(note) + 6
+        if overhead > max_chars * 0.55:
+            note = ""
+            overhead = len(verdict) + 2
+        budget = max(20, max_chars - overhead)
+        if self.ok and not self.timed_out:
+            budget = min(budget, 1000)
+        if len(body) > budget:
+            body = body[:budget] + " ...[truncated]"
+        return ("%s\n%s\n[%s]" % (verdict, body, note)) if note else ("%s\n%s" % (verdict, body))
 
 
 # --------------------------------------------------------------------------- #

@@ -1,3 +1,7 @@
+# OS cruft
+.DS_Store
+Thumbs.db
+
 # Python
 __pycache__/
 *.py[cod]
@@ -19,3 +23,9 @@ workspace/output/*
 
 # Test artifacts
 tests/_test_ws*/
+
+# Scratch output from manual tool runs
+_artifacts/
+
+# Project virtualenv
+.venv/

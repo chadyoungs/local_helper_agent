@@ -55,13 +55,24 @@ input, textarea { font: inherit; }
 .session-item:hover .session-tools { opacity: 1; }
 
 /* Files panel */
-.files-panel { border-top: 1px solid var(--border); padding: 12px; max-height: 200px; overflow-y: auto; }
-.files-panel h3 { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; }
-.file-row { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 3px 0; }
+.files-panel { border-top: 1px solid var(--border); padding: 10px 12px 12px;
+  max-height: 46vh; min-height: 150px; display: flex; flex-direction: column; }
+.files-head { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.files-head h3 { font-size: 12px; color: var(--muted); text-transform: uppercase;
+  letter-spacing: .05em; flex: 1; }
+.files-head .count { font-size: 11px; color: var(--muted); background: #eef2f7;
+  border-radius: 10px; padding: 1px 7px; }
+.file-list { flex: 1; overflow-y: auto; }
+.file-group { font-size: 11px; color: var(--muted); margin: 8px 0 2px; display: flex;
+  align-items: center; gap: 4px; }
+.file-group::before { content: "📁"; font-size: 10px; }
+.file-row { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 3px 4px;
+  border-radius: 4px; cursor: pointer; }
+.file-row:hover { background: #eef2f7; }
 .file-row .fname { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.file-row .fsize { color: var(--muted); font-size: 12px; }
-.upload-row { display: flex; gap: 6px; margin-top: 8px; }
-.upload-row input[type=file] { font-size: 12px; flex: 1; }
+.file-row .fsize { color: var(--muted); font-size: 11px; flex-shrink: 0; }
+.file-row .fdir { color: var(--muted); font-size: 11px; flex-shrink: 0; }
+.upload-hint { color: var(--muted); font-size: 11px; margin-top: 6px; line-height: 1.4; }
 
 /* Main chat */
 .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
@@ -76,16 +87,33 @@ input, textarea { font: inherit; }
 .msg.tool { align-self: flex-start; background: #f1f5f9; border: 1px solid var(--border); font-family: "Courier New", monospace; font-size: 12.5px; white-space: pre-wrap; }
 .msg .label { display: block; font-size: 12px; font-weight: 700; margin-bottom: 4px; color: var(--muted); }
 .msg.user .label { color: #e0e7ff; }
+
+/* Inline clarification (no pop-up window) */
+.msg.ask { align-self: flex-start; background: #fffbeb; border: 1px solid #fcd34d; border-left: 4px solid #f59e0b; }
+.msg.ask .label { color: #b45309; }
+.msg.ask .q { font-weight: 500; }
+.msg.ask .hint { margin-top: 6px; font-size: 12px; color: #b45309; opacity: .85; }
+
 .tool-call-panel { background: #f8fafc; border: 1px solid var(--border); border-radius: 6px; margin-top: 8px; font-family: "Courier New", monospace; font-size: 12.5px; overflow: hidden; }
 .tool-call-head { padding: 6px 10px; background: #eef2f7; font-weight: 600; cursor: pointer; }
 .tool-call-body { padding: 8px 10px; white-space: pre-wrap; display: none; }
 .tool-call-body.open { display: block; }
 
 /* Input */
-.input-bar { padding: 14px 20px; background: var(--panel); border-top: 1px solid var(--border); }
+.input-bar { padding: 14px 20px; background: var(--panel); border-top: 1px solid var(--border); position: relative; }
 #userInput { width: 100%; padding: 11px 13px; border: 1px solid #cbd5e1; border-radius: 8px;
   resize: vertical; min-height: 58px; font-size: 14px; line-height: 1.5; }
 .input-row { display: flex; gap: 10px; margin-top: 8px; justify-content: flex-end; }
+
+/* Filename autocomplete */
+.ac-box { position: absolute; left: 20px; right: 20px; bottom: 100%; margin-bottom: 6px;
+  background: #fff; border: 1px solid #cbd5e1; border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,.12);
+  max-height: 240px; overflow-y: auto; z-index: 50; }
+.ac-item { padding: 8px 12px; cursor: pointer; font-size: 13px; display: flex; align-items: center; gap: 8px; }
+.ac-item .ac-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ac-item .ac-size { color: var(--muted); font-size: 11px; flex-shrink: 0; }
+.ac-item.active { background: #eef2f7; }
+.ac-empty { padding: 8px 12px; color: var(--muted); font-size: 12px; }
 
 /* Toast + loading */
 #loading { position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
@@ -94,15 +122,6 @@ input, textarea { font: inherit; }
 #toast { position: fixed; top: 64px; left: 50%; transform: translateX(-50%);
   background: var(--danger); color: #fff; padding: 10px 18px; border-radius: 8px;
   display: none; z-index: 200; max-width: 90%; }
-
-/* Ask-user modal */
-.modal-mask { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: none;
-  align-items: center; justify-content: center; z-index: 300; }
-.modal { background: #fff; border-radius: 10px; padding: 22px; width: 460px; max-width: 92%; box-shadow: 0 8px 30px rgba(0,0,0,.2); }
-.modal h3 { margin-bottom: 8px; }
-.modal .q { color: var(--ink); font-size: 14px; margin-bottom: 14px; }
-.modal input { width: 100%; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 6px; margin-bottom: 14px; }
-.modal .actions { display: flex; gap: 10px; justify-content: flex-end; }
 
 /* Markdown-lite styles */
 .msg.assistant pre { background: var(--code-bg); color: var(--code-ink); padding: 10px 12px; border-radius: 6px; overflow-x: auto; font-size: 13px; margin: 6px 0; }
@@ -129,12 +148,13 @@ input, textarea { font: inherit; }
   </div>
   <div id="sessionList" class="session-list"></div>
   <div class="files-panel">
-    <h3>Uploaded files</h3>
-    <div id="fileList"></div>
-    <div class="upload-row">
-      <input type="file" id="fileInput" multiple>
-      <button id="btnUpload">Upload</button>
+    <div class="files-head">
+      <h3>Input files</h3>
+      <span class="count" id="fileCount">0</span>
+      <button class="icon-btn" id="btnRefreshFiles" title="Reload workspace/input">⟳</button>
     </div>
+    <div id="fileList" class="file-list"></div>
+    <div class="upload-hint">Every file in <code>workspace/input</code> (sub-folders included). Click a file to insert its name into the message box.</div>
   </div>
 </aside>
 
@@ -146,6 +166,7 @@ input, textarea { font: inherit; }
   </div>
   <div id="messages"></div>
   <div class="input-bar">
+    <div id="acBox" class="ac-box" hidden></div>
     <textarea id="userInput" placeholder="Type a message or instruction... (Enter to send, Shift+Enter for newline)"></textarea>
     <div class="input-row">
       <button id="btnClear" class="ghost">Clear screen</button>
@@ -154,37 +175,77 @@ input, textarea { font: inherit; }
   </div>
 </main>
 
-<!-- Ask-user modal -->
-<div class="modal-mask" id="askMask">
-  <div class="modal">
-    <h3>Clarification needed</h3>
-    <div class="q" id="askQuestion"></div>
-    <input id="askInput" placeholder="Type your answer here...">
-    <div class="actions">
-      <button class="ghost" id="askCancel">Cancel</button>
-      <button id="askSubmit">Submit</button>
-    </div>
-  </div>
-</div>
-
 <script>
 const API = "http://127.0.0.1:5001";
 const $ = (id) => document.getElementById(id);
 const loadingDom = $("loading"), toastDom = $("toast");
 const msgDom = $("messages"), sessionListDom = $("sessionList");
 const userInput = $("userInput"), sessionTag = $("sessionTag");
-const askMask = $("askMask"), askQuestion = $("askQuestion"), askInput = $("askInput");
+const acBox = $("acBox");
 
 let currentSessionId = null;
 let isProcessing = false;
-let pendingAsk = false;
+
+/* Filename autocomplete state */
+let acFiles = [];          // [{name, dir, size}] loaded from GET /files
+let acItems = [];          // currently shown [{name, dir, size}]
+let acIndex = -1;
+
+function openAc(query){
+  const q = (query || "").trim().toLowerCase();
+  const all = acFiles.filter(f => f.name.toLowerCase().includes(q));
+  all.sort((a,b) => {
+    const ap = a.name.toLowerCase().startsWith(q) ? 0 : 1;
+    const bp = b.name.toLowerCase().startsWith(q) ? 0 : 1;
+    return ap - bp || a.name.localeCompare(b.name);
+  });
+  acItems = all.slice(0, 7);
+  acBox.innerHTML = "";
+  if(!acItems.length){ acBox.innerHTML = '<div class="ac-empty">No matching files</div>'; acBox.hidden = false; acIndex = -1; return; }
+  acItems.forEach((f, i) => {
+    const item = document.createElement("div");
+    item.className = "ac-item" + (i === 0 ? " active" : "");
+    item.innerHTML = `<span class="ac-name">${esc(f.name)}</span><span class="ac-size">${fmtSize(f.size)}</span>`;
+    item.addEventListener("mousedown", (e) => { e.preventDefault(); acceptAc(i); });
+    item.addEventListener("mouseenter", () => setAcActive(i));
+    acBox.appendChild(item);
+  });
+  acBox.hidden = false;
+  setAcActive(0);
+}
+function setAcActive(i){
+  acIndex = i;
+  Array.from(acBox.children).forEach((c, k) => c.classList.toggle("active", k === i));
+  const active = acBox.children[i];
+  if(active) active.scrollIntoView({ block: "nearest" });
+}
+function closeAc(){ acBox.hidden = true; acBox.innerHTML = ""; acItems = []; acIndex = -1; }
+
+/* Insert text at the caret, replacing the word being typed. */
+function insertAtCaret(text, replaceWord){
+  const pos = userInput.selectionStart, val = userInput.value;
+  const before = val.slice(0, pos);
+  const start = replaceWord
+    ? Math.max(before.lastIndexOf(" "), before.lastIndexOf("\n")) + 1
+    : pos;
+  userInput.value = val.slice(0, start) + text + val.slice(pos);
+  const caret = start + text.length;
+  userInput.setSelectionRange(caret, caret);
+  userInput.focus();
+}
+function acceptAc(i){
+  if(i < 0 || i >= acItems.length) return closeAc();
+  insertAtCaret(acItems[i].name, true);
+  closeAc();
+}
+
 
 function showToast(msg){ toastDom.innerText = msg; toastDom.style.display = "block";
   setTimeout(()=> toastDom.style.display = "none", 3400); }
 function setLoading(on){ loadingDom.style.display = on ? "block" : "none"; $("btnSend").disabled = on; }
 
 /* ---------------- Markdown-lite renderer (XSS-safe) ---------------- */
-function esc(s){ return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
 function renderMd(text){
   // escape first, then tokenize code blocks before inline rules
   const escaped = esc(text);
@@ -221,6 +282,22 @@ function addMsg(role, content, extra = {}){
   msgDom.appendChild(box); msgDom.scrollTop = msgDom.scrollHeight;
   return box;
 }
+
+/* Clarifications are shown inline in the conversation, never in a pop-up. */
+function addAsk(question, {focus = true} = {}){
+  const box = document.createElement("div"); box.className = "msg ask";
+  const label = document.createElement("span"); label.className="label"; label.textContent="Needs your input";
+  const q = document.createElement("div"); q.className="q"; q.textContent = question || "Please provide more information.";
+  const hint = document.createElement("div"); hint.className="hint"; hint.textContent = "Answer in the message box below ↓";
+  box.appendChild(label); box.appendChild(q); box.appendChild(hint);
+  msgDom.appendChild(box); msgDom.scrollTop = msgDom.scrollHeight;
+  if(focus){
+    userInput.placeholder = "Answer: " + (question || "");
+    userInput.focus();
+  }
+  return box;
+}
+
 function addToolCall(tool, args){
   const box = document.createElement("div"); box.className="msg tool";
   const panel = document.createElement("div"); panel.className="tool-call-panel";
@@ -284,7 +361,7 @@ async function loadSessionMessages(sid){
         // assistant content may be a stored decision JSON or a final answer
         try{ const d = JSON.parse(m.content);
           if(d.tool_name) addToolCall(d.tool_name, d.tool_args);
-          else if(d.question) addMsg("assistant", "[asked] " + d.question);
+          else if(d.question) addAsk(d.question, {focus:false});
           else if(d.final_answer) addMsg("assistant", d.final_answer);
           else addMsg("assistant", m.content);
         }catch(_){ addMsg("assistant", m.content); }
@@ -323,56 +400,54 @@ async function deleteSession(sid){
   }catch(e){ showToast("Delete failed: " + e.message); }
 }
 
-/* ---------------- Files ---------------- */
+/* ---------------- Files: every file under workspace/input ---------------- */
 async function loadFiles(){
   try{
-    const res = await fetch(`${API}/files`); const data = await res.json();
+    const res = await fetch(`${API}/files`);
+    if(!res.ok) throw new Error("HTTP " + res.status);
+    const data = await res.json();
+    const files = data.files || [];
+    acFiles = files.map(f => ({ name: f.name, dir: f.dir || "", size: f.size }));
+    $("fileCount").textContent = String(files.length);
+
     const list = $("fileList"); list.innerHTML = "";
-    if(!data.files.length){ list.innerHTML = '<div style="color:var(--muted);font-size:12px">No files</div>'; return; }
-    data.files.forEach(f => {
+    if(!files.length){
+      list.innerHTML = '<div style="color:var(--muted);font-size:12px">No files in workspace/input</div>';
+      return;
+    }
+    let currentDir = null;
+    files.forEach(f => {
+      const dir = f.dir || "";
+      if(dir !== currentDir){
+        currentDir = dir;
+        if(dir){
+          const head = document.createElement("div"); head.className="file-group"; head.textContent = dir;
+          list.appendChild(head);
+        }
+      }
       const row = document.createElement("div"); row.className="file-row";
-      const name = document.createElement("span"); name.className="fname"; name.textContent = f.name;
+      row.title = f.name + " — click to insert this name";
+      const base = dir ? f.name.slice(dir.length + 1) : f.name;
+      const name = document.createElement("span"); name.className="fname"; name.textContent = base;
       const size = document.createElement("span"); size.className="fsize"; size.textContent = fmtSize(f.size);
-      row.appendChild(name); row.appendChild(size); list.appendChild(row);
+      row.appendChild(name); row.appendChild(size);
+      row.addEventListener("click", ()=>{ insertAtCaret(f.name, false); showToast("Inserted " + f.name); });
+      list.appendChild(row);
     });
-  }catch(e){ /* ignore */ }
+  }catch(e){ /* offline / not started yet */ }
 }
 function fmtSize(n){ if(n<1024) return n+" B"; if(n<1048576) return (n/1024).toFixed(1)+" KB"; return (n/1048576).toFixed(1)+" MB"; }
-async function uploadFiles(){
-  const input = $("fileInput");
-  if(!input.files.length) return showToast("Choose a file first");
-  setLoading(true);
-  try{
-    for(const file of input.files){
-      const fd = new FormData(); fd.append("file", file);
-      const res = await fetch(`${API}/upload`, {method:"POST", body:fd});
-      if(!res.ok) throw new Error("Upload failed");
-    }
-    input.value = ""; showToast("Uploaded " + input.files.length + " file(s)"); loadFiles();
-  }catch(e){ showToast("Upload error: " + e.message); }
-  finally{ setLoading(false); }
-}
-
-/* ---------------- Ask-user modal ---------------- */
-function showAsk(question){
-  pendingAsk = true; askQuestion.textContent = question || "Please provide more information.";
-  askMask.style.display = "flex"; askInput.value = ""; setTimeout(()=>askInput.focus(), 50);
-}
-function hideAsk(){ pendingAsk = false; askMask.style.display = "none"; }
-$("askCancel").addEventListener("click", hideAsk);
-$("askSubmit").addEventListener("click", ()=>{
-  const ans = askInput.value.trim();
-  if(!ans) return showToast("Answer cannot be empty");
-  hideAsk(); sendMessage(ans);
-});
 
 /* ---------------- Chat ---------------- */
+const DEFAULT_PLACEHOLDER = "Type a message or instruction... (Enter to send, Shift+Enter for newline)";
+
 async function sendMessage(text){
   if(isProcessing) return;
   if(!currentSessionId){ showToast("Create or select a session first"); return; }
   isProcessing = true; setLoading(true);
   addMsg("user", text);
   userInput.value = "";
+  userInput.placeholder = DEFAULT_PLACEHOLDER;
   try{
     const res = await fetch(`${API}/chat`, {method:"POST",
       headers:{"Content-Type":"application/json"},
@@ -387,7 +462,7 @@ async function sendMessage(text){
       for(const line of lines){
         if(!line.trim()) continue;
         let ev; try{ ev = JSON.parse(line); }catch(_){ continue; }
-        if(ev.event === "ask_user"){ showAsk(ev.question); }
+        if(ev.event === "ask_user"){ addAsk(ev.question); }
         else if(ev.event === "tool_call"){ addToolCall(ev.tool, ev.args); }
         else if(ev.event === "tool_result"){ addToolResult(ev.tool, ev.payload); }
         else if(ev.event === "chunk"){ /* final answer rendered via 'final' event */ }
@@ -395,20 +470,37 @@ async function sendMessage(text){
         else if(ev.event === "error"){ showToast(ev.message || "Backend error"); }
       }
     }
-    loadSessions();
+    loadSessions(); loadFiles();
   }catch(e){ showToast("Error: " + e.message); }
   finally{ isProcessing = false; setLoading(false); }
 }
 
 /* ---------------- Events ---------------- */
 $("btnNewSession").addEventListener("click", createSession);
-$("btnUpload").addEventListener("click", uploadFiles);
 $("btnSend").addEventListener("click", ()=> sendMessage(userInput.value.trim()));
 $("btnClear").addEventListener("click", clearMsgs);
-userInput.addEventListener("keydown", (e)=>{
-  if(e.key === "Enter" && !e.shiftKey){ e.preventDefault(); sendMessage(userInput.value.trim()); }
+$("btnRefreshFiles").addEventListener("click", loadFiles);
+userInput.addEventListener("input", ()=>{
+  const v = userInput.value;
+  if(!v.trim()){ closeAc(); return; }
+  const before = v.slice(0, userInput.selectionStart);
+  const token = before.slice(Math.max(before.lastIndexOf(" "), before.lastIndexOf("\n")) + 1);
+  if(!token.trim()){ closeAc(); return; }
+  openAc(token);
 });
-$("askInput").addEventListener("keydown", (e)=>{ if(e.key==="Enter") $("askSubmit").click(); });
+userInput.addEventListener("keydown", (e)=>{
+  if(!acBox.hidden){
+    if(e.key === "ArrowDown"){ e.preventDefault(); if(acItems.length) setAcActive((acIndex + 1) % acItems.length); return; }
+    if(e.key === "ArrowUp"){ e.preventDefault(); if(acItems.length) setAcActive((acIndex - 1 + acItems.length) % acItems.length); return; }
+    if(e.key === "Tab" || e.key === "Enter"){ e.preventDefault(); acceptAc(acIndex); return; }
+    if(e.key === "Escape"){ e.preventDefault(); closeAc(); return; }
+  }
+  if(e.key === "Enter" && !e.shiftKey){ e.preventDefault(); closeAc(); sendMessage(userInput.value.trim()); }
+});
+userInput.addEventListener("blur", ()=> setTimeout(closeAc, 120));
+
+/* Keep the panel in sync when the user drops files in outside the UI. */
+window.addEventListener("focus", ()=>{ loadFiles(); });
 
 /* ---------------- Init ---------------- */
 (async function init(){

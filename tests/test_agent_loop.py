@@ -35,7 +35,7 @@ class _FakeTools:
         self.results = list(results)
         self.calls = []
 
-    def run(self, tool_name, tool_args):
+    def run(self, tool_name, tool_args, output_stem=None):
         self.calls.append((tool_name, tool_args))
         if self.results:
             return self.results.pop(0)
@@ -102,19 +102,52 @@ def test_ask_user_stops_turn():
 
 def test_step_budget_enforced():
     history = []
-    # model keeps calling tools, never concludes
+    # A model that keeps calling the SAME tool but with ever-changing arguments
+    # (so the duplicate-call guard cannot dedupe it) must still stop at the budget.
     llm = _FakeLLM([
-        AgentDecision(tool_name="pdf_merge", tool_args={"inputs": "a.pdf", "output": "o.pdf"})
-        for _ in range(99)
+        AgentDecision(tool_name="pdf_merge", tool_args={"inputs": "a.pdf", "output": "o%d.pdf" % i})
+        for i in range(99)
     ])
-    tools = _FakeTools([ToolResult(ok=True, stdout="ok") for _ in range(99)])
+    tools = _FakeTools([ToolResult(ok=False, stderr="boom", returncode=1) for _ in range(99)])
     history, events = _run(history, "loop", llm, tools)
 
     max_steps = _settings().max_agent_steps
     assert len(tools.calls) == max_steps
-    # loop terminates with a budget message
+    # The ending is informative instead of a bare "budget exceeded" notice.
     final_event = next(e for e in reversed(events) if e["event"] == "final")
-    assert "budget" in final_event["content"]
+    assert str(max_steps) in final_event["content"]
+    assert "boom" in final_event["content"]
+
+
+def test_identical_successful_call_is_not_repeated():
+    """A model re-issuing the same successful call must not burn the budget."""
+    history = []
+    llm = _FakeLLM([
+        AgentDecision(tool_name="pdf_merge", tool_args={"inputs": "a.pdf b.pdf", "output": "m.pdf"})
+        for _ in range(99)
+    ])
+    tools = _FakeTools([
+        ToolResult(ok=True, stdout='{"ok": true, "output_file": "workspace/output/m.pdf"}')
+    ])
+    history, events = _run(history, "merge", llm, tools)
+
+    assert len(tools.calls) == 1
+    final_event = next(e for e in reversed(events) if e["event"] == "final")
+    assert "m.pdf" in final_event["content"]
+
+
+def test_identical_failing_call_asks_user_instead_of_looping():
+    history = []
+    llm = _FakeLLM([
+        AgentDecision(tool_name="pdf_merge", tool_args={"inputs": "input.pdf", "output": "m.pdf"})
+        for _ in range(99)
+    ])
+    tools = _FakeTools([ToolResult(ok=False, stderr="Input file not found", returncode=-2)])
+    history, events = _run(history, "merge", llm, tools)
+
+    assert len(tools.calls) == 1
+    ask = next(e for e in events if e["event"] == "ask_user")
+    assert "pdf_merge" in ask["question"]
 
 
 def test_final_answer_without_tool():
@@ -133,3 +166,17 @@ def test_empty_decision_falls_back():
     history, events = _run(history, "x", llm, tools)
     final = next(e for e in events if e["event"] == "final")
     assert final["content"]  # non-empty fallback
+
+def test_tool_result_paths_are_workspace_relative():
+    """Absolute roots (incl. the macOS /private/tmp form) must be stripped."""
+    from agent.tools_runner import ToolRunner
+
+    settings = _settings()
+    runner = ToolRunner(settings)
+    root = str(settings.workspace_root)
+    real = str(settings.workspace_root.resolve())
+    text = '{"input_files": ["%s/input/a.pdf"], "output_file": "%s/output/x/a.pdf"}' % (root, real)
+    stripped = runner._strip_root(text)
+    assert root not in stripped
+    assert real not in stripped
+    assert "workspace/input/a.pdf" in stripped

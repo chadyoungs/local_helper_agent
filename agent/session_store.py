@@ -9,12 +9,15 @@ Stored on disk as ``sessions/<uuid>.json`` shaped like::
 from __future__ import annotations
 
 import json
+import logging
 import os
 import threading
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
+
+logger = logging.getLogger(__name__)
 
 from .schemas import SessionContainer, SessionMeta
 from .settings import Settings
@@ -60,16 +63,26 @@ class SessionStore:
                 json.dump(payload.model_dump(), f, ensure_ascii=False, indent=2)
         return sid, payload.messages
 
-    def load(self, sid: str) -> SessionContainer | None:
+    def load(self, sid: str) -> Optional[SessionContainer]:
         p = self._path(sid)
         if not p.exists():
             return None
         with self._lock_for(sid):
-            with open(p, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        return _coerce_container(sid, data)
+            try:
+                with open(p, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            except (OSError, json.JSONDecodeError):
+                # A truncated or empty session file (e.g. after a crash) must not
+                # take the whole session list — and the UI — down with it.
+                logger.warning("ignoring unreadable session file: %s", p.name)
+                return None
+        try:
+            return _coerce_container(sid, data)
+        except Exception:  # noqa: BLE001 - legacy/invalid payload shapes
+            logger.warning("ignoring invalid session payload: %s", p.name)
+            return None
 
-    def save(self, sid: str, messages: list[dict[str, Any]], title: str | None = None) -> None:
+    def save(self, sid: str, messages: list[dict[str, Any]], title: Optional[str] = None) -> None:
         existing = self.load(sid)
         now = _now_iso()
         if existing is None:

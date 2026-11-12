@@ -6,7 +6,7 @@ from pathlib import Path
 from pypdf import PaperSize, PdfReader, PdfWriter
 
 
-def main():
+def parse_args():
     parser = argparse.ArgumentParser(
         description="PDF merge tool, force all pages to A4 portrait, support built‑in blank pages between documents"
     )
@@ -29,12 +29,40 @@ def main():
         help="Logical filename for merged output pdf",
     )
 
-    args = parser.parse_args()
-    ret = {"ok": False, "error": None, "input_files": [], "output_file": None}
+    return parser.parse_args()
 
+
+def merge_pdfs(input_paths, output_path, blank_count, blank_pdf_path):
+    """
+    Merge multiple PDF files into a single PDF file, with optional blank pages between documents.
+    All pages are scaled to A4 portrait size.
+    """
     # Target dimensions for standard A4 in points (595.27 x 841.89)
     target_width = float(PaperSize.A4.width)
     target_height = float(PaperSize.A4.height)
+
+    writer = PdfWriter()
+
+    for idx, pdf_path in enumerate(input_paths):
+        reader = PdfReader(str(pdf_path))
+        for src_page in reader.pages:
+            src_page.scale_to(width=target_width, height=target_height)
+            writer.add_page(src_page)
+
+        # Insert blank pages between documents, skip after the last document
+        if blank_count > 0 and idx != len(input_paths) - 1:
+            blank_reader = PdfReader(str(blank_pdf_path))
+            for _ in range(blank_count):
+                writer.add_page(blank_reader.pages[0])
+
+    with open(output_path, "wb") as f_out:
+        writer.write(f_out)
+
+
+def main():
+    args = parse_args()
+    
+    ret = {"ok": False, "error": None, "input_files": [], "output_file": None}
 
     try:
         # Locate built‑in blank.pdf static file
@@ -49,29 +77,16 @@ def main():
         except:
             input_paths = args.inputs
 
+        output_path = Path(args.output)
+        blank_count = args.blank_count
+
         ret["input_files"] = input_paths
 
-        writer = PdfWriter()
+        merge_pdfs(input_paths, output_path, blank_count, blank_pdf)
 
-        for idx, pdf_path in enumerate(input_paths):
-            reader = PdfReader(str(pdf_path))
-            for src_page in reader.pages:
-                src_page.scale_to(width=target_width, height=target_height)
-                writer.add_page(src_page)
-
-            # Insert blank pages between documents, skip after the last document
-            blank_count = int(args.blank_count)
-            if blank_count > 0 and idx != len(input_paths) - 1:
-                blank_reader = PdfReader(str(blank_pdf))
-                for _ in range(blank_count):
-                    writer.add_page(blank_reader.pages[0])
-
-        out_path = Path(args.output)
-        with open(out_path, "wb") as f_out:
-            writer.write(f_out)
 
         ret["ok"] = True
-        ret["output_file"] = str(out_path)
+        ret["output_file"] = str(output_path)
 
     except Exception as e:
         ret["error"] = str(e)

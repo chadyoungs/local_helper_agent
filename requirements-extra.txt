@@ -1,0 +1,8 @@
+# Optional extras — NOT needed for the core app.
+#
+#   python -m pip install -r requirements-extra.txt
+#
+# rembg is only used by tools/id_photo_bg_change.py. It pulls onnxruntime and
+# downloads an ONNX model (~170 MB) on first use, and it does not have wheels
+# for every Python version, which is why it is kept out of requirements.txt.
+rembg>=2.0.50

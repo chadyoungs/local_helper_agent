@@ -1,13 +1,15 @@
-# Runtime dependencies. Regenerate requirements.txt with:
+# Runtime dependencies (Python 3.9+). Regenerate requirements.txt with:
 #   pip-compile requirements.in
+# or, without pip-tools:
+#   python -m pip install -r requirements.in
 ollama
+openai           # only needed for LLM_PROVIDER=lmstudio (imported lazily)
 fastapi
 uvicorn[standard]
 python-multipart
 pdf2image
 Pillow
-rembg
+numpy            # signature_fingerprint_cutout + id_photo_bg_change
+opencv-python-headless   # image processing without pulling GUI libs (Qt)
 pypdf
-
-# Dev / test dependencies:  pip install -r requirements-dev.txt
-pytest
+rembg            # optional: first-run model download; only used by id_photo_bg_change

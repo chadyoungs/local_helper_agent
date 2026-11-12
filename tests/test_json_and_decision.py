@@ -45,18 +45,24 @@ def test_extract_unbalanced_raises():
         extract_json_object('{"a": 1')
 
 
-class _FakeOllama:
+class _FakeTransport:
+    """Minimal transport double: replays canned raw model responses."""
+
+    name = "fake"
+
     def __init__(self, outputs):
         self.outputs = list(outputs)
 
-    def chat(self, **kwargs):
-        raw = self.outputs.pop(0)
-        return {"message": {"content": raw}}
+    def chat_json(self, messages, temperature):
+        return self.outputs.pop(0)
+
+    def chat_tools(self, messages, tools, temperature):
+        return self.outputs.pop(0), []
 
 
 def _client(outputs, retries=1):
     settings = Settings(json_retries=retries)
-    return JSONStructuredLLMClient(_FakeOllama(outputs), settings)
+    return JSONStructuredLLMClient(_FakeTransport(outputs), settings)
 
 
 def test_structured_client_parses_valid():
@@ -86,3 +92,15 @@ def test_tool_result_summary_truncates():
     s = res.summary(max_chars=100)
     assert len(s) <= 100 + len("\n...[truncated]")
     assert "truncated" in s
+
+
+def test_system_prompt_carries_the_full_tool_catalog():
+    """The catalog placeholder must be substituted, not left literal."""
+    from agent.tool_registry import SYSTEM_PROMPT, TOOL_REGISTRY
+
+    assert "{tool_list_text}" not in SYSTEM_PROMPT
+    for tool in TOOL_REGISTRY:
+        assert "Tool name: %s" % tool.name in SYSTEM_PROMPT, tool.name
+        for param in tool.parameters:
+            if param.required:
+                assert param.flag in SYSTEM_PROMPT, (tool.name, param.flag)

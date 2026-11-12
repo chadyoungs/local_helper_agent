@@ -9,6 +9,7 @@ library -- we parse the dotenv file ourselves to keep the project light.
 from __future__ import annotations
 
 import os
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -63,8 +64,15 @@ class Settings:
     port: int = field(default_factory=lambda: _env_int("PORT", 5001))
 
     # --- LLM ---
+    # Inference provider: "ollama" (default) or "lmstudio" (OpenAI-compatible).
+    provider: str = field(
+        default_factory=lambda: os.getenv("LLM_PROVIDER", "ollama").strip().lower()
+    )
     ollama_base_url: str = field(
         default_factory=lambda: os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
+    )
+    lmstudio_base_url: str = field(
+        default_factory=lambda: os.getenv("LMSTUDIO_BASE_URL", "http://127.0.0.1:1234")
     )
     model: str = field(default_factory=lambda: os.getenv("OLLAMA_MODEL", "qwen2.5:7b-instruct"))
     temperature: float = field(
@@ -87,6 +95,13 @@ class Settings:
     # --- Tool sandbox / subprocess ---
     tool_timeout_seconds: int = field(
         default_factory=lambda: _env_int("TOOL_TIMEOUT_SECONDS", 120)
+    )
+
+    # Interpreter used to run the tool scripts. Defaults to the interpreter
+    # running the backend, so tools see exactly the same packages (numpy/cv2/...)
+    # instead of whatever bare ``python3`` happens to be first on PATH.
+    tool_python: str = field(
+        default_factory=lambda: os.getenv("TOOL_PYTHON") or sys.executable
     )
 
     # --- Paths (relative to project root) ---

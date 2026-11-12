@@ -7,6 +7,30 @@ from pdf2image import convert_from_path
 # If on Windows and Poppler is not in PATH, you must specify the poppler_path argument
 
 
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Convert PDF files to images (JPEG format) with optional password protection"
+    )
+    parser.add_argument(
+        "--inputs",
+        nargs="+",
+        required=True,
+        help="List of input PDF files to convert",
+    )
+    parser.add_argument(
+        "--output",
+        required=True,
+        help="Output folder to save the converted images",
+    )
+    parser.add_argument(
+        "--passwords",
+        nargs="+",
+        help="Optional list of passwords for the input PDF files, in the same order as inputs",
+    )
+
+    return parser.parse_args()
+
+
 def pdf2img(pdf_file_list, output_folder, passwords):
     for idx, pdf_file in enumerate(pdf_file_list):
 
@@ -27,11 +51,10 @@ def pdf2img(pdf_file_list, output_folder, passwords):
     print(f"Conversion successful. Images saved in the '{output_folder}' directory.")
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--inputs", nargs="+", required=True)
-    parser.add_argument("--output", required=True)
-    parser.add_argument("--passwords", nargs="+")
-    args = parser.parse_args()
-
+def main():
+    args = parse_args()
     pdf2img(args.inputs, args.output, args.passwords)
+
+
+if __name__ == "__main__":
+    main()
